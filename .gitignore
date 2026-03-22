@@ -1,0 +1,43 @@
+# Generated outputs
+outputs/
+*.png
+*.jpg
+*.jpeg
+*.mp4
+*.wav
+
+# Database files
+*.db
+*.db-journal
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.env
+.venv
+/venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+
+# macOS
+.DS_Store
+
+# ComfyUI server files (if any)
+/models/
+/checkpoints/
+/loras/

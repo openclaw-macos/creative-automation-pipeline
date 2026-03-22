@@ -1,0 +1,70 @@
+{
+  "brand_name": "NexaGoods",
+  "tagline": "Premium Essentials for Modern Living",
+  "logo_path": "assets/nexagoods_logo.png",
+  
+  "brand_colors": {
+    "primary": "#827a78",
+    "secondary": "#acaaa9",
+    "accent": "#58524f",
+    "neutral": "#cecdce",
+    "text": "#15171b"
+  },
+  
+  "color_check_settings": {
+    "tolerance_percent": 8,
+    "min_coverage_percent": 3.0
+  },
+  
+  "logo_check_settings": {
+    "min_coverage_percent": 0.5,
+    "match_threshold": 0.75,
+    "preferred_position": "top-right",
+    "opacity": 0.1
+  },
+  
+  "required_compliance_checks": [
+    "brand_colors"
+  ],
+  
+  "prohibited_words": [
+    "cheap",
+    "free",
+    "winner",
+    "guarantee",
+    "100%",
+    "best",
+    "fastest",
+    "amazing",
+    "incredible",
+    "revolutionary",
+    "magic",
+    "miracle",
+    "secret",
+    "instant",
+    "overnight"
+  ],
+  
+  "legal_guardrail_settings": {
+    "case_sensitive": false,
+    "whole_word_only": true,
+    "allowed_regions": ["US", "EU", "UK", "CA", "AU", "JP"]
+  },
+  
+  "text_overlay_settings": {
+    "font_size": 48,
+    "font_color": "#FFFFFF",
+    "position": "bottom-center",
+    "background_opacity": 0.7,
+    "fade_in_ms": 500,
+    "fade_out_ms": 500,
+    "max_chars_per_line": 40
+  },
+  
+  "video_settings": {
+    "background_music": "assets/background_music.mp3",
+    "default_silent": true,
+    "fps": 30,
+    "resolution": "1920x1080"
+  }
+}

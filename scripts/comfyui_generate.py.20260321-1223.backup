@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+"""
+Generate an image using a local ComfyUI server.
+Usage:
+    python comfyui_generate.py --prompt "a cat" --output cat.png
+    python comfyui_generate.py --prompt "a cat" --workflow custom.json --output cat.png
+"""
+import argparse
+import json
+import os
+import sys
+import time
+import random
+from typing import Any, Dict
+
+try:
+    import requests
+except ImportError:
+    print("ERROR: 'requests' library not installed. Run: pip install requests")
+    sys.exit(1)
+
+# Default ComfyUI server address
+DEFAULT_SERVER = "http://127.0.0.1:8188"
+# Default workflow file (relative to this script)
+DEFAULT_WORKFLOW = os.path.join(os.path.dirname(__file__), "default_workflow.json")
+
+def load_workflow(path: str) -> Dict[str, Any]:
+    """Load workflow JSON from file."""
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def find_prompt_node(workflow: Dict[str, Any], target_class: str) -> str:
+    """Find the first node ID of a given class type."""
+    for node_id, node in workflow.items():
+        if node.get("class_type") == target_class:
+            return node_id
+    raise ValueError(f"No node of class '{target_class}' found in workflow")
+
+def queue_prompt(server: str, workflow: Dict[str, Any]) -> str:
+    """Queue the prompt and return the prompt_id."""
+    resp = requests.post(f"{server}/prompt", json={"prompt": workflow})
+    resp.raise_for_status()
+    data = resp.json()
+    return data["prompt_id"]
+
+def wait_for_completion(server: str, prompt_id: str, poll_interval: float = 1.0) -> Dict[str, Any]:
+    """Poll the history until the prompt completes, then return its output."""
+    while True:
+        resp = requests.get(f"{server}/history")
+        resp.raise_for_status()
+        history = resp.json()
+        if prompt_id in history:
+            return history[prompt_id]
+        time.sleep(poll_interval)
+
+def download_image(server: str, filename: str, output_path: str):
+    """Download an image from ComfyUI's output directory."""
+    # ComfyUI serves images under /view?filename=...&subfolder=...
+    # The filename includes the subfolder path.
+    # We'll attempt to fetch via the /view endpoint.
+    resp = requests.get(f"{server}/view?filename={filename}")
+    resp.raise_for_status()
+    # Ensure parent directory exists
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    with open(output_path, "wb") as f:
+        f.write(resp.content)
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate an image with ComfyUI")
+    parser.add_argument("--prompt", required=True, help="Positive prompt text")
+    parser.add_argument("--negative", default="blurry, low quality, watermark, text", help="Negative prompt text")
+    parser.add_argument("--output", required=True, help="Output image file path")
+    parser.add_argument("--workflow", default=DEFAULT_WORKFLOW, help="Path to workflow JSON file")
+    parser.add_argument("--server", default=DEFAULT_SERVER, help=f"ComfyUI server URL (default: {DEFAULT_SERVER})")
+    parser.add_argument("--width", type=int, default=1024, help="Image width")
+    parser.add_argument("--height", type=int, default=1024, help="Image height")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    args = parser.parse_args()
+    # If using default seed (42), replace with random to avoid cache collisions
+    if args.seed == 42:
+        args.seed = random.randint(1, 999999999)
+
+    # Load workflow
+    try:
+        workflow = load_workflow(args.workflow)
+    except FileNotFoundError:
+        print(f"ERROR: Workflow file not found: {args.workflow}")
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"ERROR: Invalid JSON in workflow file: {e}")
+        sys.exit(1)
+
+    # Find positive and negative prompt nodes (assuming they are CLIPTextEncode)
+    try:
+        pos_node = find_prompt_node(workflow, "CLIPTextEncode")
+        # We'll assume the first CLIPTextEncode is positive, second is negative.
+        # This is a simplification; real workflows may differ.
+        # We'll just replace the first one's text.
+        workflow[pos_node]["inputs"]["text"] = args.prompt
+        # Try to find a second CLIPTextEncode for negative
+        for node_id, node in workflow.items():
+            if node.get("class_type") == "CLIPTextEncode" and node_id != pos_node:
+                node["inputs"]["text"] = args.negative
+                break
+    except ValueError as e:
+        print(f"ERROR: {e}")
+        print("Make sure the workflow contains CLIPTextEncode nodes.")
+        sys.exit(1)
+
+    # Update EmptyLatentImage dimensions if present
+    for node_id, node in workflow.items():
+        if node.get("class_type") == "EmptyLatentImage":
+            node["inputs"]["width"] = args.width
+            node["inputs"]["height"] = args.height
+            break
+
+    # Update KSampler seed if present
+    for node_id, node in workflow.items():
+        if node.get("class_type") == "KSampler":
+            node["inputs"]["seed"] = args.seed
+            break
+
+    print(f"Queueing prompt to {args.server}...")
+    try:
+        prompt_id = queue_prompt(args.server, workflow)
+    except requests.exceptions.ConnectionError:
+        print(f"ERROR: Cannot connect to ComfyUI server at {args.server}")
+        print("Make sure ComfyUI is running and the port is correct.")
+        sys.exit(1)
+    except requests.exceptions.HTTPError as e:
+        print(f"ERROR: Server returned {e.response.status_code}")
+        print(e.response.text)
+        sys.exit(1)
+
+    print(f"Prompt queued with ID: {prompt_id}")
+    print("Waiting for completion...")
+
+    try:
+        result = wait_for_completion(args.server, prompt_id)
+    except KeyboardInterrupt:
+        print("\nInterrupted. Exiting.")
+        sys.exit(1)
+
+    # Extract output images
+    outputs = result.get("outputs", {})
+    if not outputs:
+        print("ERROR: No outputs in completed prompt.")
+        # Check if the execution was fully cached (common cause)
+        status = result.get("status", {})
+        messages = status.get("messages", [])
+        cached = any(msg[0] == "execution_cached" and msg[1].get("nodes") for msg in messages)
+        if cached:
+            print("  The workflow nodes were fully cached by ComfyUI.")
+            print("  This can happen when identical inputs are re‑used.")
+            print("  Try changing the --seed, --width, --height, or prompt text.")
+        print(f"Debug: result keys = {list(result.keys())}")
+        if status:
+            print(f"Status: {status}")
+        sys.exit(1)
+
+    # Find the SaveImage node output
+    for node_id, node_out in outputs.items():
+        if "images" in node_out:
+            for img in node_out["images"]:
+                filename = img["filename"]
+                subfolder = img.get("subfolder", "")
+                full_path = os.path.join(subfolder, filename) if subfolder else filename
+                print(f"Downloading {full_path}...")
+                download_image(args.server, full_path, args.output)
+                print(f"Saved to {args.output}")
+                sys.exit(0)
+
+    print("ERROR: No image found in outputs.")
+    sys.exit(1)
+
+if __name__ == "__main__":
+    main()
