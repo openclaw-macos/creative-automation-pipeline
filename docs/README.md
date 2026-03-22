@@ -48,6 +48,18 @@ This proof‑of‑concept (POC) demonstrates an end‑to‑end creative automati
 
 ### 7. **512×512 Default – Avoiding Common Pitfalls**
    - The pipeline defaults to **512×512** images (square) to avoid the 1024×1024 and 2048×2048 sizes that the user explicitly prohibited. This is enforced in both the workflow JSON and the Python script’s default arguments.
+
+### 8. **Video Pipeline with Config‑Driven Overlays**
+   - **Text & Logo Overlays:** Campaign messages are automatically overlaid as white 48‑pt text (bottom‑center) with fade‑in/out effects, while the brand logo appears at top‑right with 10% opacity—all configurable in `brand_config.json`.
+   - **Voicebox TTS Integration:** Narration is generated via a local Voicebox server (`http://127.0.0.1:17493`) with silent‑audio fallback, ensuring video always has an audio track.
+   - **FFmpeg Center‑Crop:** Images are intelligently cropped to 16:9 using correct center‑crop mathematics, preserving the most important visual content.
+   - **One‑Click Demo:** `run_video_demo.sh` executes the full video pipeline end‑to‑end, from image generation to final MP4.
+
+### 9. **HeyGen Avatar Integration with Local‑Model Planning**
+   - **API‑First Avatar Generation:** Uses the HeyGen API to produce professional avatar videos from scripts, with support for avatar/voice selection and background customization.
+   - **Local‑Model Cost Avoidance:** All script planning and refinement uses local Ollama models (`mistral‑nemo`, `qwen3‑vl`, `qwen3.5`) to avoid DeepSeek API charges while still leveraging HeyGen’s high‑quality avatar rendering.
+   - **Voicebox Voice Preference:** The integration automatically searches for Voicebox‑compatible voices in HeyGen’s voice library, falling back to the best available English voice.
+   - **Standalone Demo:** `run_heygen_demo.sh` showcases avatar generation with the provided API key, using local models for script processing as requested.
    - Aspect‑ratio flexibility is retained via command‑line arguments (`--width`, `--height`), but the safe default ensures compliance with the user’s directive.
 
 ---
@@ -79,7 +91,24 @@ This proof‑of‑concept (POC) demonstrates an end‑to‑end creative automati
   - `--no-report` – skip database/JSON logging.
   - `--product` – product name for reporting.
   - `--campaign-message` – separate campaign text for legal checks.
+  - `--video` – generate video with text/logo overlays and voiceover.
+  - `--video-output-dir` – directory for video outputs.
+  - `--voicebox-url` – Voicebox TTS server URL.
 - **Integrated Logging:** Automatically logs every generation when reporting is enabled.
+
+### Video Pipeline (`src/video_pipeline.py`)
+- **Text Overlays:** Adds campaign message as white 48‑pt text with semi‑transparent background at bottom‑center position, with configurable fade‑in/out effects.
+- **Logo Overlays:** Places brand logo at top‑right corner with 10% opacity (configurable), automatically resized to 15% of image width.
+- **Voicebox TTS Integration:** Generates voiceover using local Voicebox server with silent‑audio fallback.
+- **FFmpeg Video Assembly:** Creates 16:9 MP4 videos with proper center‑cropping and fade transitions.
+- **Config‑Driven:** All settings (font size, color, position, opacity) read from `brand_config.json`.
+
+### HeyGen Integration (`src/heygen_integration.py`)
+- **Avatar Video Generation:** Uses HeyGen API to create professional avatar videos from scripts.
+- **Local‑Model Planning:** Script refinement and planning uses local Ollama models (`mistral‑nemo`, `qwen3‑vl`, `qwen3.5`) to avoid cloud API charges.
+- **Voicebox Voice Preference:** Automatically searches for Voicebox‑compatible voices in HeyGen’s voice library.
+- **API Key Configuration:** Requires HeyGen API key (provided in demo script).
+- **Polling & Download:** Monitors video generation status and downloads completed videos automatically.
 
 ---
 
@@ -101,10 +130,19 @@ This proof‑of‑concept (POC) demonstrates an end‑to‑end creative automati
    python main.py --port 8188
    ```
 
-4. **Run a Test Generation with Full Compliance & Reporting:**
-   ```bash
-   ./run_demo.sh
-   ```
+4. **Run Demo Scripts:**
+   - **Basic pipeline (image + compliance + legal + reporting):**
+     ```bash
+     ./run_demo.sh
+     ```
+   - **Video pipeline (adds text/logo overlays + voiceover + MP4):**
+     ```bash
+     ./run_video_demo.sh
+     ```
+   - **HeyGen avatar pipeline (requires API key, uses local models):**
+     ```bash
+     ./run_heygen_demo.sh
+     ```
 
 5. **Inspect Logs:**
    - Open `outputs/pipeline_logs.db` with DB Browser for SQLite.
