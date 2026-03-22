@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Generate an image using a local ComfyUI server with Brand Compliance, Legal Guardrails, Reporting, and Video Pipeline.
+Generate an image using a local ComfyUI server with Brand Compliance, Legal Guardrails, and Reporting.
 Extended for Creative Automation Pipeline POC.
 Usage:
     python comfyui_generate.py --prompt "a cat" --output cat.png
-    python comfyui_generate.py --prompt "a cat" --workflow custom.json --output cat.png --compliance-check --legal-check --video
+    python comfyui_generate.py --prompt "a cat" --workflow custom.json --output cat.png --compliance-check --legal-check
 """
 import argparse
 import json
@@ -34,15 +34,6 @@ except ImportError as e:
     print(f"WARNING: Compliance modules not available: {e}")
     print("  Install with: pip install -r requirements.txt")
     COMPLIANCE_MODULES_AVAILABLE = False
-
-# Import video pipeline (optional)
-try:
-    from video_pipeline import VideoPipeline
-    VIDEO_PIPELINE_AVAILABLE = True
-except ImportError as e:
-    print(f"WARNING: Video pipeline not available: {e}")
-    print("  Video features will be disabled")
-    VIDEO_PIPELINE_AVAILABLE = False
 
 # Default paths (relative to script location)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -87,38 +78,36 @@ def download_image(server: str, filename: str, output_path: str):
     resp = requests.get(f"{server}/view?filename={filename}")
     resp.raise_for_status()
     # Ensure parent directory exists
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     with open(output_path, "wb") as f:
         f.write(resp.content)
 
 def run_compliance_checks(image_path: str, brand_config_path: str, checks: list) -> Dict[str, Any]:
     """Run brand compliance checks on generated image."""
+    if not COMPLIANCE_MODULES_AVAILABLE:
+        return {"overall_passed": False, "reason": "Compliance modules not installed", "checks": {}}
+    
     try:
         checker = BrandComplianceChecker(brand_config_path)
         results = checker.run_compliance_checks(image_path, checks)
         return results
     except Exception as e:
-        return {
-            "overall_passed": False,
-            "reason": f"Compliance check error: {e}",
-            "checks": {}
-        }
+        return {"overall_passed": False, "reason": f"Compliance check error: {e}", "checks": {}}
 
-def run_legal_check(text: str, brand_config_path: str) -> Dict[str, Any]:
-    """Run legal guardrail check on campaign message."""
+def run_legal_check(campaign_message: str, brand_config_path: str) -> Dict[str, Any]:
+    """Check campaign message for prohibited words."""
+    if not COMPLIANCE_MODULES_AVAILABLE:
+        return {"passed": False, "reason": "Legal guardrail module not installed", "matches": []}
+    
     try:
         guardrail = LegalGuardrail(brand_config_path)
-        results = guardrail.check_text(text)
-        return results
+        result = guardrail.check_campaign_message(campaign_message)
+        return result
     except Exception as e:
-        return {
-            "passed": False,
-            "reason": f"Legal check error: {e}",
-            "matches": []
-        }
+        return {"passed": False, "reason": f"Legal check error: {e}", "matches": []}
 
 def log_generation(
-    reporter,
+    reporter: PipelineReporter,
     product: str,
     width: int,
     height: int,
@@ -130,7 +119,9 @@ def log_generation(
     workflow_name: str,
     seed: int
 ) -> int:
-    """Log generation to database."""
+    """Log generation details to database and JSON."""
+    aspect_ratio = f"{width}:{height}"
+    
     # Determine compliance status
     compliance_passed = compliance_results.get("overall_passed", False)
     legal_passed = legal_results.get("passed", False)
@@ -144,18 +135,27 @@ def log_generation(
     else:
         compliance_status = "FAIL_LEGAL"
     
+    # Extract check details
     checks = compliance_results.get("checks", {})
-    brand_colors_passed = checks.get("brand_colors", {}).get("passed", False) if checks else False
-    logo_presence_passed = checks.get("logo_presence", {}).get("passed", False) if checks else False
+    brand_colors_passed = checks.get("brand_colors", {}).get("passed", False)
+    logo_presence_passed = checks.get("logo_presence", {}).get("passed", False)
+    
+    checks_passed = sum(1 for check in checks.values() if check.get("passed", False))
+    total_checks = len(checks) if checks else 0
     
     log_id = reporter.log_generation(
         product=product,
+        aspect_ratio=aspect_ratio,
         width=width,
         height=height,
-        aspect_ratio=f"{width}:{height}",
         compliance_status=compliance_status,
         generation_time_ms=generation_time_ms,
         image_path=image_path,
+        checks_passed=checks_passed,
+        total_checks=total_checks,
+        brand_colors_passed=brand_colors_passed,
+        logo_presence_passed=logo_presence_passed,
+        legal_check_passed=legal_passed,
         campaign_message=campaign_message,
         workflow_name=workflow_name,
         seed=seed,
@@ -167,54 +167,8 @@ def log_generation(
     
     return log_id
 
-def generate_video(
-    image_path: str,
-    campaign_message: str,
-    brand_config_path: str,
-    output_dir: str,
-    product_name: str
-) -> Dict[str, Any]:
-    """Generate video with text/logo overlays and voiceover."""
-    if not VIDEO_PIPELINE_AVAILABLE:
-        return {"success": False, "reason": "Video pipeline not available"}
-    
-    try:
-        # Create output directory
-        video_output_dir = os.path.join(output_dir, "video")
-        os.makedirs(video_output_dir, exist_ok=True)
-        
-        # Initialize video pipeline
-        pipeline = VideoPipeline(brand_config_path)
-        
-        # Step 1: Add text overlay
-        text_overlay_path = os.path.join(video_output_dir, f"{product_name}_text_overlay.png")
-        pipeline.add_text_overlay(image_path, campaign_message, text_overlay_path)
-        
-        # Step 2: Add logo overlay
-        final_image_path = os.path.join(video_output_dir, f"{product_name}_final.png")
-        pipeline.add_logo_overlay(text_overlay_path, final_image_path)
-        
-        # Step 3: Generate voiceover
-        audio_path = os.path.join(video_output_dir, f"{product_name}_voiceover.mp3")
-        pipeline.generate_voiceover(campaign_message, audio_path)
-        
-        # Step 4: Create video
-        video_path = os.path.join(video_output_dir, f"{product_name}_video.mp4")
-        pipeline.create_video(final_image_path, audio_path, video_path)
-        
-        return {
-            "success": True,
-            "text_overlay_path": text_overlay_path,
-            "final_image_path": final_image_path,
-            "audio_path": audio_path,
-            "video_path": video_path
-        }
-        
-    except Exception as e:
-        return {"success": False, "reason": str(e)}
-
 def main():
-    parser = argparse.ArgumentParser(description="Generate an image with ComfyUI (with Compliance, Reporting & Video)")
+    parser = argparse.ArgumentParser(description="Generate an image with ComfyUI (with Compliance & Reporting)")
     parser.add_argument("--prompt", required=True, help="Positive prompt text")
     parser.add_argument("--negative", default="blurry, low quality, watermark, text", help="Negative prompt text")
     parser.add_argument("--output", required=True, help="Output image file path")
@@ -232,11 +186,6 @@ def main():
     parser.add_argument("--no-report", action="store_true", help="Skip logging to database/JSON")
     parser.add_argument("--product", default="Unspecified", help="Product name for reporting")
     parser.add_argument("--campaign-message", default="", help="Campaign message for legal check")
-    
-    # Video pipeline arguments
-    parser.add_argument("--video", action="store_true", help="Generate video with text/logo overlays and voiceover")
-    parser.add_argument("--video-output-dir", help="Directory for video outputs (default: same as image output dir)")
-    parser.add_argument("--voicebox-url", default="http://127.0.0.1:17493", help="Voicebox TTS server URL")
     
     args = parser.parse_args()
     
@@ -280,40 +229,42 @@ def main():
     # Find positive and negative prompt nodes (assuming they are CLIPTextEncode)
     try:
         pos_node = find_prompt_node(workflow, "CLIPTextEncode")
-        # Usually negative is next node ID, but let's search for it
-        neg_node = None
+        # Replace first CLIPTextEncode with positive prompt
+        workflow[pos_node]["inputs"]["text"] = args.prompt
+        # Try to find a second CLIPTextEncode for negative
         for node_id, node in workflow.items():
             if node.get("class_type") == "CLIPTextEncode" and node_id != pos_node:
-                neg_node = node_id
+                node["inputs"]["text"] = args.negative
                 break
-        if neg_node is None:
-            neg_node = pos_node  # fallback
-    except ValueError:
-        print("ERROR: Could not find CLIPTextEncode nodes in workflow.")
-        print("Make sure your workflow has at least one CLIPTextEncode node.")
+    except ValueError as e:
+        print(f"ERROR: {e}")
+        print("Make sure the workflow contains CLIPTextEncode nodes.")
         sys.exit(1)
     
-    # Update prompts in workflow
-    workflow[pos_node]["inputs"]["text"] = args.prompt
-    workflow[neg_node]["inputs"]["text"] = args.negative
-    
-    # Update latent dimensions if EmptyLatentImage node exists
+    # Update EmptyLatentImage dimensions if present
     for node_id, node in workflow.items():
         if node.get("class_type") == "EmptyLatentImage":
             node["inputs"]["width"] = args.width
             node["inputs"]["height"] = args.height
             break
     
-    # Queue prompt and wait
+    # Update KSampler seed if present
+    for node_id, node in workflow.items():
+        if node.get("class_type") == "KSampler":
+            node["inputs"]["seed"] = args.seed
+            break
+    
     print(f"Queueing prompt to {args.server}...")
     start_time = time.time()
-    
     try:
         prompt_id = queue_prompt(args.server, workflow)
-    except requests.exceptions.RequestException as e:
-        print(f"ERROR: Failed to connect to ComfyUI server at {args.server}")
-        print(f"       Make sure ComfyUI is running and accessible.")
-        print(f"       Error: {e}")
+    except requests.exceptions.ConnectionError:
+        print(f"ERROR: Cannot connect to ComfyUI server at {args.server}")
+        print("Make sure ComfyUI is running and the port is correct.")
+        sys.exit(1)
+    except requests.exceptions.HTTPError as e:
+        print(f"ERROR: Server returned {e.response.status_code}")
+        print(e.response.text)
         sys.exit(1)
     
     print(f"Prompt queued with ID: {prompt_id}")
@@ -321,16 +272,31 @@ def main():
     
     try:
         result = wait_for_completion(args.server, prompt_id)
-    except requests.exceptions.RequestException as e:
-        print(f"ERROR: Failed to get result from ComfyUI server: {e}")
+    except KeyboardInterrupt:
+        print("\nInterrupted. Exiting.")
         sys.exit(1)
     
     generation_time_ms = int((time.time() - start_time) * 1000)
     
-    # Download the generated image
+    # Extract output images
     outputs = result.get("outputs", {})
-    image_saved = False
+    if not outputs:
+        print("ERROR: No outputs in completed prompt.")
+        # Check if the execution was fully cached
+        status = result.get("status", {})
+        messages = status.get("messages", [])
+        cached = any(msg[0] == "execution_cached" and msg[1].get("nodes") for msg in messages)
+        if cached:
+            print("  The workflow nodes were fully cached by ComfyUI.")
+            print("  This can happen when identical inputs are re‑used.")
+            print("  Try changing the --seed, --width, --height, or prompt text.")
+        print(f"Debug: result keys = {list(result.keys())}")
+        if status:
+            print(f"Status: {status}")
+        sys.exit(1)
     
+    # Find the SaveImage node output
+    image_saved = False
     for node_id, node_out in outputs.items():
         if "images" in node_out:
             for img in node_out["images"]:
@@ -367,31 +333,6 @@ def main():
                 if not check_result.get("passed", False):
                     print(f"   {check_name}: {check_result.get('reason', 'Unknown')}")
     
-    # Video generation (if enabled)
-    video_results = {"success": False}
-    if args.video and VIDEO_PIPELINE_AVAILABLE:
-        print("\n=== Starting Video Pipeline ===")
-        
-        # Determine output directory
-        video_output_dir = args.video_output_dir or os.path.dirname(args.output)
-        
-        video_results = generate_video(
-            image_path=args.output,
-            campaign_message=args.campaign_message or args.prompt,
-            brand_config_path=args.brand_config,
-            output_dir=video_output_dir,
-            product_name=args.product.replace(" ", "_")
-        )
-        
-        if video_results.get("success"):
-            print("✅ Video pipeline completed successfully!")
-            print(f"   Text overlay: {video_results.get('text_overlay_path')}")
-            print(f"   Final image: {video_results.get('final_image_path')}")
-            print(f"   Voiceover: {video_results.get('audio_path')}")
-            print(f"   Video: {video_results.get('video_path')}")
-        else:
-            print(f"⚠️  Video pipeline failed: {video_results.get('reason', 'Unknown error')}")
-    
     # Reporting (if not disabled)
     if not args.no_report and COMPLIANCE_MODULES_AVAILABLE:
         print("Logging generation to database...")
@@ -427,8 +368,6 @@ def main():
         print(f"   Compliance: {'PASS' if compliance_results.get('overall_passed') else 'FAIL'}")
     if args.legal_check:
         print(f"   Legal: {'PASS' if legal_results.get('passed') else 'FAIL'}")
-    if args.video:
-        print(f"   Video: {'SUCCESS' if video_results.get('success') else 'FAILED'}")
     
     # Exit with non-zero code if compliance/legal failed and strict mode?
     # For now, just warn.

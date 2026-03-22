@@ -1,6 +1,7 @@
-# Dependencies for Creative Automation Pipeline with Compliance & Reporting
+# Dependencies for Creative Automation Pipeline with Compliance, Reporting & Video
 requests>=2.25.1
 opencv-python>=4.8.0
 numpy>=1.21.0
 pyyaml>=6.0
+Pillow>=10.0.0
 # SQLite3 is built-in

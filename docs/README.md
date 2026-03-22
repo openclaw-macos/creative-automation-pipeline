@@ -88,7 +88,7 @@ This proof‑of‑concept (POC) demonstrates an end‑to‑end creative automati
 1. **Install Dependencies:**
    ```bash
    cd skills/comfyui
-   pip install -r requirements.txt
+   ./src/install_deps.sh
    ```
 
 2. **Configure Brand Settings:**
@@ -103,13 +103,7 @@ This proof‑of‑concept (POC) demonstrates an end‑to‑end creative automati
 
 4. **Run a Test Generation with Full Compliance & Reporting:**
    ```bash
-   python src/comfyui_generate.py \
-     --prompt "a sleek coffee maker on a kitchen counter" \
-     --output outputs/images/coffee.png \
-     --product "Coffee Maker" \
-     --campaign-message "Start your day smarter with our premium coffee maker" \
-     --compliance-check \
-     --legal-check
+   ./run_demo.sh
    ```
 
 5. **Inspect Logs:**
