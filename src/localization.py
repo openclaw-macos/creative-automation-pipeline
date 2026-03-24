@@ -8,8 +8,19 @@ import os
 import sys
 import json
 import requests
+import logging
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import quote
+
+# Add src directory to path for module imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Unified logging
+try:
+    from utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level
+except ImportError:
+    # Fallback for when run as module
+    from .utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level
 
 class Localization:
     """
@@ -124,7 +135,7 @@ class Localization:
                 return lang
         
         # Default to English
-        print(f"WARNING: Unknown target_region '{target_region}', defaulting to 'en'")
+        log_warning(f"Unknown target_region '{target_region}', defaulting to 'en'")
         return "en"
     
     def get_language_from_brief(self, brief: Dict) -> str:
@@ -187,10 +198,10 @@ class Localization:
             elif self.translation_api == "mymemory":
                 return self._translate_mymemory(text, source_lang, target_lang)
             else:
-                print(f"WARNING: Unknown translation API '{self.translation_api}', using mock")
+                log_warning(f"Unknown translation API '{self.translation_api}', using mock")
                 return self._mock_translate(text, target_lang)
         except Exception as e:
-            print(f"WARNING: Translation failed: {e}, using mock translation")
+            log_warning(f"Translation failed: {e}, using mock translation")
             return self._mock_translate(text, target_lang)
     
     def _mock_translate(self, text: str, target_lang: str) -> str:
@@ -239,10 +250,10 @@ class Localization:
                 result = response.json()
                 return result.get("translatedText", text)
             else:
-                print(f"LibreTranslate API error: {response.status_code}")
+                log_warning(f"LibreTranslate API error: {response.status_code}")
                 return text
         except Exception as e:
-            print(f"LibreTranslate request failed: {e}")
+            log_warning(f"LibreTranslate request failed: {e}")
             return text
     
     def _translate_google(self, text: str, source_lang: str, target_lang: str) -> str:
@@ -272,7 +283,7 @@ class Localization:
                     return "".join(translated_parts) if translated_parts else text
             return text
         except Exception as e:
-            print(f"Google Translate request failed: {e}")
+            log_warning(f"Google Translate request failed: {e}")
             return text
     
     def _translate_mymemory(self, text: str, source_lang: str, target_lang: str) -> str:
@@ -296,7 +307,7 @@ class Localization:
                     return result["responseData"]["translatedText"]
             return text
         except Exception as e:
-            print(f"MyMemory Translation request failed: {e}")
+            log_warning(f"MyMemory Translation request failed: {e}")
             return text
     
     def localize_campaign(self, brief: Dict, use_translation: bool = True) -> Dict:
@@ -375,8 +386,8 @@ def main():
         "campaign_message": "Start your day smarter with our kitchen essentials"
     }
     
-    print("Testing Localization Service")
-    print("============================")
+    log_info("Testing Localization Service")
+    log_info("============================")
     
     # Create localization service with mock translation
     loc = Localization(use_mock=True)
@@ -386,24 +397,24 @@ def main():
     for region in regions:
         lang = loc.get_language_code(region)
         voice = loc.get_voice_code(lang)
-        print(f"Region: {region:<30} → Language: {lang:<5} → Voice: {voice}")
+        log_info(f"Region: {region:<30} → Language: {lang:<5} → Voice: {voice}")
     
-    print()
+    log_info("")
     
     # Test localization
     localized = loc.localize_campaign(test_brief)
-    print(f"Original brief: {test_brief}")
-    print(f"Localized brief: {json.dumps(localized, indent=2, ensure_ascii=False)}")
+    log_info(f"Original brief: {test_brief}")
+    log_info(f"Localized brief: {json.dumps(localized, indent=2, ensure_ascii=False)}")
     
-    print()
+    log_info("")
     
     # Test actual translation (if internet available)
-    print("Testing actual translation (requires internet):")
+    log_info("Testing actual translation (requires internet):")
     loc_real = Localization(use_mock=False, translation_api="libre")
     test_text = "Hello, world!"
     for target_lang in ["es", "fr", "de"]:
         translated = loc_real.translate_text(test_text, "en", target_lang)
-        print(f"  '{test_text}' → {target_lang}: '{translated}'")
+        log_info(f"  '{test_text}' → {target_lang}: '{translated}'")
 
 
 if __name__ == "__main__":

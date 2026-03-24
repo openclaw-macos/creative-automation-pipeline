@@ -9,9 +9,20 @@ import sys
 import json
 import shutil
 import re
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
+
+# Add src directory to path for module imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Unified logging
+try:
+    from utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
+except ImportError:
+    # Fallback for when run as module
+    from .utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
 
 class CampaignManager:
     """
@@ -222,42 +233,55 @@ def main():
     parser.add_argument("--brief", default="../configs/brief.json", help="Path to brief.json file")
     parser.add_argument("--list", action="store_true", help="List existing campaigns")
     parser.add_argument("--rename", action="store_true", help="Rename campaign folders to maintain sequential numbering")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose debug output")
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
+                       default="INFO", help="Set log level (default: INFO)")
     
     args = parser.parse_args()
+    
+    # Set log level based on verbose flag or log-level argument
+    if args.verbose:
+        set_log_level(logging.DEBUG)
+        log_debug("Verbose debug output enabled")
+    else:
+        level = get_log_level(args.log_level)
+        set_log_level(level)
+        if level <= logging.DEBUG:
+            log_debug(f"Log level set to {args.log_level}")
     
     # Initialize campaign manager
     manager = CampaignManager()
     
     if args.list:
-        print("Existing campaigns:")
+        log_info("Existing campaigns:")
         campaigns = manager.list_campaigns()
         for campaign in campaigns:
-            print(f"  {campaign['campaign_number']}: {campaign['folder_name']}")
-            print(f"     Region: {campaign['target_region']}")
-            print(f"     Products: {', '.join(campaign['products'][:3])}")
-            print(f"     Path: {campaign['folder_path']}")
-            print()
+            log_info(f"  {campaign['campaign_number']}: {campaign['folder_name']}")
+            log_info(f"     Region: {campaign['target_region']}")
+            log_info(f"     Products: {', '.join(campaign['products'][:3])}")
+            log_info(f"     Path: {campaign['folder_path']}")
+            log_info("")
     
     elif args.rename:
-        print("Renaming campaign folders to maintain sequential numbering...")
+        log_info("Renaming campaign folders to maintain sequential numbering...")
         manager.rename_campaign_folders()
-        print("Done!")
+        log_success("Done!")
     
     else:
         # Process brief file
-        print(f"Processing brief file: {args.brief}")
+        log_info(f"Processing brief file: {args.brief}")
         if os.path.exists(args.brief):
             campaign_id, folder_path = manager.process_brief_file(args.brief)
-            print(f"✅ Created campaign folder: {folder_path}")
-            print(f"   Campaign ID: {campaign_id}")
+            log_success(f"Created campaign folder: {folder_path}")
+            log_info(f"   Campaign ID: {campaign_id}")
             
             # List all campaigns
-            print("\nAll campaigns:")
+            log_info("\nAll campaigns:")
             for campaign in manager.list_campaigns():
-                print(f"  {campaign['campaign_number']}: {campaign['folder_name']}")
+                log_info(f"  {campaign['campaign_number']}: {campaign['folder_name']}")
         else:
-            print(f"❌ Brief file not found: {args.brief}")
-            print("Creating sample brief...")
+            log_warning(f"Brief file not found: {args.brief}")
+            log_info("Creating sample brief...")
             
             # Create sample brief
             sample_brief = {
@@ -272,7 +296,7 @@ def main():
                 json.dump(sample_brief, f, indent=2)
             
             campaign_id, folder_path = manager.process_brief_file(sample_brief_path)
-            print(f"✅ Created campaign folder from sample: {folder_path}")
+            log_success(f"Created campaign folder from sample: {folder_path}")
             os.remove(sample_brief_path)
 
 

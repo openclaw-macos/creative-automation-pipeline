@@ -8,10 +8,21 @@ import os
 import sys
 import json
 import mimetypes
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 import time
 from datetime import datetime
+
+# Add src directory to path for module imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Unified logging
+try:
+    from utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
+except ImportError:
+    # Fallback for when run as module
+    from .utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
 
 # Try to import Google API libraries
 try:
@@ -22,7 +33,7 @@ try:
     GOOGLE_API_AVAILABLE = True
 except ImportError:
     GOOGLE_API_AVAILABLE = False
-    print("WARNING: Google API libraries not available. Install with: pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib")
+    log_warning("Google API libraries not available. Install with: pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib")
 
 class GoogleDriveIntegration:
     """
@@ -73,10 +84,10 @@ class GoogleDriveIntegration:
             
             # Build Drive service
             self.service = build('drive', 'v3', credentials=credentials)
-            print(f"✅ Authenticated with Google Drive as: {credentials.service_account_email}")
+            log_success(f"Authenticated with Google Drive as: {credentials.service_account_email}")
             
         except Exception as e:
-            print(f"❌ Google Drive authentication failed: {e}")
+            log_error(f"Google Drive authentication failed: {e}")
             raise
     
     def create_folder(self, folder_name: str, parent_folder_id: str = None) -> Dict[str, Any]:
@@ -107,11 +118,11 @@ class GoogleDriveIntegration:
                 fields='id, name, webViewLink'
             ).execute()
             
-            print(f"✅ Created Google Drive folder: {folder_name} (ID: {folder.get('id')})")
+            log_success(f"Created Google Drive folder: {folder_name} (ID: {folder.get('id')})")
             return folder
             
         except HttpError as e:
-            print(f"❌ Failed to create folder: {e}")
+            log_error(f"Failed to create folder: {e}")
             raise
     
     def upload_file(self, local_path: str, remote_name: str = None, 
@@ -154,7 +165,7 @@ class GoogleDriveIntegration:
         try:
             media = MediaFileUpload(local_path, mimetype=mime_type, resumable=True)
             
-            print(f"Uploading {local_path} to Google Drive...")
+            log_info(f"Uploading {local_path} to Google Drive...")
             file = self.service.files().create(
                 body=file_metadata,
                 media_body=media,
@@ -162,13 +173,13 @@ class GoogleDriveIntegration:
             ).execute()
             
             file_size = int(file.get('size', 0))
-            print(f"✅ Uploaded: {remote_name} ({file_size / 1024:.1f} KB)")
-            print(f"   Link: {file.get('webViewLink')}")
+            log_success(f"Uploaded: {remote_name} ({file_size / 1024:.1f} KB)")
+            log_info(f"   Link: {file.get('webViewLink')}")
             
             return file
             
         except HttpError as e:
-            print(f"❌ Failed to upload {local_path}: {e}")
+            log_error(f"Failed to upload {local_path}: {e}")
             raise
     
     def upload_folder(self, local_folder: str, remote_folder_name: str = None,
@@ -231,7 +242,7 @@ class GoogleDriveIntegration:
                     })
                     
                 except Exception as e:
-                    print(f"❌ Failed to upload {filename}: {e}")
+                    log_error(f"Failed to upload {filename}: {e}")
                     failed_files.append({
                         'local_path': local_file_path,
                         'error': str(e)
@@ -304,7 +315,7 @@ class GoogleDriveIntegration:
             return file_info.get('webViewLink')
             
         except HttpError as e:
-            print(f"❌ Failed to create shareable link: {e}")
+            log_error(f"Failed to create shareable link: {e}")
             raise
     
     def upload_campaign_outputs(self, campaign_folder: str, 
@@ -329,11 +340,11 @@ class GoogleDriveIntegration:
         # Check for outputs folder
         outputs_folder = os.path.join(campaign_folder, 'outputs')
         if not os.path.exists(outputs_folder):
-            print(f"⚠️  No outputs folder found in {campaign_folder}")
+            log_warning(f"No outputs folder found in {campaign_folder}")
             return {'success': False, 'error': 'No outputs folder found'}
         
-        print(f"Uploading campaign outputs: {campaign_name}")
-        print(f"Local folder: {campaign_folder}")
+        log_info(f"Uploading campaign outputs: {campaign_name}")
+        log_info(f"Local folder: {campaign_folder}")
         
         # Upload the entire outputs folder
         return self.upload_folder(outputs_folder, f"{campaign_name}_outputs", self.folder_id)
@@ -348,12 +359,25 @@ def main():
     parser.add_argument("--folder-id", default="1XdhY-6U624J_ml-MulmMfhQ5zrn9ja1H", help="Google Drive folder ID")
     parser.add_argument("--upload", help="Local file or folder to upload")
     parser.add_argument("--test-auth", action="store_true", help="Test authentication only")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose debug output")
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
+                       default="INFO", help="Set log level (default: INFO)")
     
     args = parser.parse_args()
     
+    # Set log level based on verbose flag or log-level argument
+    if args.verbose:
+        set_log_level(logging.DEBUG)
+        log_debug("Verbose debug output enabled")
+    else:
+        level = get_log_level(args.log_level)
+        set_log_level(level)
+        if level <= logging.DEBUG:
+            log_debug(f"Log level set to {args.log_level}")
+    
     if not GOOGLE_API_AVAILABLE:
-        print("ERROR: Google API libraries not installed.")
-        print("Install with: pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib")
+        log_error("Google API libraries not installed.")
+        log_info("Install with: pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib")
         sys.exit(1)
     
     try:
@@ -364,37 +388,37 @@ def main():
         )
         
         if args.test_auth:
-            print("✅ Authentication successful")
+            log_success("Authentication successful")
             sys.exit(0)
         
         if args.upload:
             if os.path.isfile(args.upload):
                 # Upload single file
                 result = drive.upload_file(args.upload)
-                print(f"\n✅ File uploaded successfully!")
-                print(f"   ID: {result.get('id')}")
-                print(f"   Link: {result.get('webViewLink')}")
+                log_success(f"\nFile uploaded successfully!")
+                log_info(f"   ID: {result.get('id')}")
+                log_info(f"   Link: {result.get('webViewLink')}")
                 
             elif os.path.isdir(args.upload):
                 # Upload folder
                 result = drive.upload_folder(args.upload)
-                print(f"\n✅ Folder uploaded successfully!")
-                print(f"   Uploaded: {result['uploaded_count']} files")
-                print(f"   Failed: {result['failed_count']} files")
-                print(f"   Folder link: {result['remote_folder_link']}")
+                log_success(f"\nFolder uploaded successfully!")
+                log_info(f"   Uploaded: {result['uploaded_count']} files")
+                log_info(f"   Failed: {result['failed_count']} files")
+                log_info(f"   Folder link: {result['remote_folder_link']}")
                 
             else:
-                print(f"❌ Path not found: {args.upload}")
+                log_error(f"Path not found: {args.upload}")
                 sys.exit(1)
         
         else:
-            print("\nUsage examples:")
-            print("  python google_drive_integration.py --upload /path/to/file.jpg")
-            print("  python google_drive_integration.py --upload /path/to/folder")
-            print("  python google_drive_integration.py --test-auth")
+            log_info("\nUsage examples:")
+            log_info("  python google_drive_integration.py --upload /path/to/file.jpg")
+            log_info("  python google_drive_integration.py --upload /path/to/folder")
+            log_info("  python google_drive_integration.py --test-auth")
     
     except Exception as e:
-        print(f"❌ Error: {e}")
+        log_error(f"Error: {e}")
         sys.exit(1)
 
 

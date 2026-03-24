@@ -87,6 +87,14 @@ cd creative-automation-pipeline
 - **Generation metadata** – Product, dimensions, compliance status, timing
 - **Query API** – Filter by date, product, region, compliance status
 
+### 🔊 **Console Output & Logging**
+- **Structured logging** – Unified logger with timestamps, levels, and emoji support
+- **Progress indicators** – Step‑by‑step progress tracking with [step/total] format
+- **Error handling** – Clear error messages with actionable context
+- **Verbose mode** – `--verbose` flag for detailed debugging output
+- **Color support** – Terminal colors for better readability (auto‑detected)
+- **Log levels** – DEBUG, INFO, WARNING, ERROR, CRITICAL with appropriate emojis
+
 ---
 
 ## 📁 Repository Structure
@@ -119,7 +127,7 @@ creative-automation-pipeline/
 │   ├── run_heygen_demo.sh     # HeyGen avatar generation
 │   ├── run_heygen_from_brief.sh # HeyGen from brief.json
 │   ├── run_localization_demo.sh # Localization testing
-│   └── test_*.sh              # Verification scripts
+│   └── scripts/tests/test_*.sh   # Verification scripts
 └── docs/
     ├── demo_script.md         # 3‑minute video script
     └── BRAND_GUIDELINES.md    # Brand compliance guidelines
@@ -265,16 +273,16 @@ outputs/
 ### **Complete Verification**
 ```bash
 # Test all features
-./test_campaign_fix.sh
+./scripts/tests/test_campaign_fix.sh
 
 # Test localization
-./test_localization_complete.sh
+./scripts/tests/test_localization_complete.sh
 
 # Test Google Drive integration
-./test_google_drive.sh
+./scripts/tests/test_google_drive.sh
 
 # Test translation updates
-./test_translation_update.sh
+./scripts/tests/test_translation_update.sh
 ```
 
 ### **Expected Test Results**

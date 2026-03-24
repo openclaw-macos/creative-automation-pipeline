@@ -13,6 +13,16 @@ from typing import Dict, List, Optional, Any
 import base64
 from pathlib import Path
 
+# Add src directory to path for module imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Unified logging
+try:
+    from utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
+except ImportError:
+    # Fallback for when run as module
+    from .utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
+
 class HeyGenIntegration:
     def __init__(self, api_key: str, base_url: str = "https://api.heygen.com"):
         """
@@ -59,7 +69,7 @@ class HeyGenIntegration:
                 
             return self._avatars_cache
         except Exception as e:
-            print(f"WARNING: Failed to fetch avatars from HeyGen: {e}")
+            log_warning(f"Failed to fetch avatars from HeyGen: {e}")
             # Return default avatars list
             return [
                 {"avatar_id": "anna_costume1_cameraA", "name": "Anna (Professional)"},
@@ -88,7 +98,7 @@ class HeyGenIntegration:
                 
             return self._voices_cache
         except Exception as e:
-            print(f"WARNING: Failed to fetch voices from HeyGen: {e}")
+            log_warning(f"Failed to fetch voices from HeyGen: {e}")
             # Return default voices list
             return [
                 {"voice_id": "1bd001e7e50f421d891986aad5158bc8", "name": "English Female 1"},
@@ -155,10 +165,10 @@ class HeyGenIntegration:
             voicebox_voice = self.find_voicebox_voice()
             if voicebox_voice:
                 voice_id = voicebox_voice
-                print(f"Using Voicebox-compatible voice: {voice_id}")
+                log_info(f"Using Voicebox-compatible voice: {voice_id}")
             else:
                 voice_id = self.default_voice_id
-                print(f"Using default voice: {voice_id}")
+                log_info(f"Using default voice: {voice_id}")
         
         # Prepare API request
         url = f"{self.base_url}/v1/video/generate"
@@ -190,10 +200,10 @@ class HeyGenIntegration:
         }
         
         try:
-            print(f"Creating avatar video with HeyGen API...")
-            print(f"  Avatar: {avatar_id}")
-            print(f"  Voice: {voice_id}")
-            print(f"  Script length: {len(script)} characters")
+            log_info(f"Creating avatar video with HeyGen API...")
+            log_info(f"  Avatar: {avatar_id}")
+            log_info(f"  Voice: {voice_id}")
+            log_info(f"  Script length: {len(script)} characters")
             
             response = requests.post(url, headers=self.headers, json=payload, timeout=60)
             response.raise_for_status()
@@ -217,7 +227,7 @@ class HeyGenIntegration:
                     "response": data
                 }
             
-            print(f"✅ Video generation started. Task ID: {task_id}")
+            log_success(f"Video generation started. Task ID: {task_id}")
             
             # Wait for video to be ready and download
             if video_url:
@@ -255,7 +265,7 @@ class HeyGenIntegration:
         max_attempts = 60  # 5 minutes max
         url = f"{self.base_url}/v1/video/{task_id}"
         
-        print(f"Polling for video completion (max {max_attempts * poll_interval}s)...")
+        log_info(f"Polling for video completion (max {max_attempts * poll_interval}s)...")
         
         for attempt in range(max_attempts):
             try:
@@ -267,7 +277,7 @@ class HeyGenIntegration:
                 video_url = data.get("data", {}).get("video_url")
                 
                 if status == "completed" and video_url:
-                    print(f"✅ Video completed on attempt {attempt + 1}")
+                    log_success(f"Video completed on attempt {attempt + 1}")
                     return self._download_video(video_url, output_path, task_id)
                 elif status == "failed":
                     return {
@@ -278,14 +288,14 @@ class HeyGenIntegration:
                     }
                 elif status == "processing":
                     if attempt % 6 == 0:  # Print every 30 seconds
-                        print(f"  Still processing... ({attempt * poll_interval}s elapsed)")
+                        log_info(f"  Still processing... ({attempt * poll_interval}s elapsed)")
                     time.sleep(poll_interval)
                 else:
-                    print(f"  Unknown status: {status}, waiting...")
+                    log_warning(f"  Unknown status: {status}, waiting...")
                     time.sleep(poll_interval)
                     
             except Exception as e:
-                print(f"  Poll error: {e}, retrying...")
+                log_warning(f"  Poll error: {e}, retrying...")
                 time.sleep(poll_interval)
         
         return {
@@ -302,7 +312,7 @@ class HeyGenIntegration:
             # Ensure output directory exists
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
             
-            print(f"Downloading video from: {video_url}")
+            log_info(f"Downloading video from: {video_url}")
             response = requests.get(video_url, stream=True, timeout=60)
             response.raise_for_status()
             
@@ -311,7 +321,7 @@ class HeyGenIntegration:
                     f.write(chunk)
             
             file_size = os.path.getsize(output_path)
-            print(f"✅ Video downloaded: {output_path} ({file_size / 1024 / 1024:.1f} MB)")
+            log_success(f"Video downloaded: {output_path} ({file_size / 1024 / 1024:.1f} MB)")
             
             return {
                 "success": True,
@@ -355,7 +365,7 @@ class HeyGenIntegration:
         # 2. Use local vision model to analyze reference images if needed
         # 3. Call HeyGen API with the refined script
         
-        print(f"Using local model '{local_model_type}' for script planning...")
+        log_info(f"Using local model '{local_model_type}' for script planning...")
         
         # For now, just pass the prompt as the script
         # In production, you would call local LLM here
@@ -378,6 +388,7 @@ class HeyGenIntegration:
 def main():
     """Test HeyGen integration."""
     import argparse
+    import logging
     
     parser = argparse.ArgumentParser(description="Test HeyGen avatar generation")
     parser.add_argument("--api-key", required=True, help="HeyGen API key")
@@ -385,8 +396,21 @@ def main():
     parser.add_argument("--output", default="output/heygen_test.mp4", help="Output video path")
     parser.add_argument("--local-model", choices=["mistral-nemo", "qwen3-vl", "qwen3.5"], default="mistral-nemo", help="Local model to use for planning")
     parser.add_argument("--target-region", default="USA", help="Target region for localization (e.g., USA, Japan, Brazil)")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose debug output")
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
+                       default="INFO", help="Set log level (default: INFO)")
     
     args = parser.parse_args()
+    
+    # Set log level based on verbose flag or log-level argument
+    if args.verbose:
+        set_log_level(logging.DEBUG)
+        log_debug("Verbose debug output enabled")
+    else:
+        level = get_log_level(args.log_level)
+        set_log_level(level)
+        if level <= logging.DEBUG:
+            log_debug(f"Log level set to {args.log_level}")
     
     # Initialize HeyGen integration
     heygen = HeyGenIntegration(api_key=args.api_key)
@@ -402,35 +426,35 @@ def main():
         if lang_code != "en":
             original_script = args.script
             args.script = loc.translate_text(original_script, "en", lang_code)
-            print(f"Localization: Region='{args.target_region}', Language='{lang_code}', Voice='{voice_code}'")
-            print(f"Translated script from: '{original_script[:50]}...'")
-            print(f"                    to: '{args.script[:50]}...'")
+            log_info(f"Localization: Region='{args.target_region}', Language='{lang_code}', Voice='{voice_code}'")
+            log_info(f"Translated script from: '{original_script[:50]}...'")
+            log_info(f"                    to: '{args.script[:50]}...'")
         else:
-            print(f"Localization: Region='{args.target_region}', Language='{lang_code}' (no translation needed)")
+            log_info(f"Localization: Region='{args.target_region}', Language='{lang_code}' (no translation needed)")
     except ImportError:
-        print("WARNING: Localization module not available. Using English defaults.")
+        log_warning("Localization module not available. Using English defaults.")
         lang_code = "en"
     
     # Test available avatars and voices
-    print("\nAvailable avatars:")
+    log_info("\nAvailable avatars:")
     avatars = heygen.get_available_avatars()
     for avatar in avatars[:3]:  # Show first 3
-        print(f"  - {avatar.get('name', 'Unknown')} (ID: {avatar.get('avatar_id', 'N/A')})")
+        log_info(f"  - {avatar.get('name', 'Unknown')} (ID: {avatar.get('avatar_id', 'N/A')})")
     
-    print("\nAvailable voices:")
+    log_info("\nAvailable voices:")
     voices = heygen.get_available_voices()
     for voice in voices[:3]:  # Show first 3
-        print(f"  - {voice.get('name', 'Unknown')} (ID: {voice.get('voice_id', 'N/A')})")
+        log_info(f"  - {voice.get('name', 'Unknown')} (ID: {voice.get('voice_id', 'N/A')})")
     
     # Try to find Voicebox voice
     voicebox_voice = heygen.find_voicebox_voice()
     if voicebox_voice:
-        print(f"\n✅ Found Voicebox-compatible voice: {voicebox_voice}")
+        log_success(f"\nFound Voicebox-compatible voice: {voicebox_voice}")
     else:
-        print(f"\n⚠️  No Voicebox-compatible voice found, using default")
+        log_warning(f"\nNo Voicebox-compatible voice found, using default")
     
     # Generate video with local model planning
-    print(f"\nGenerating avatar video with local model '{args.local_model}'...")
+    log_info(f"\nGenerating avatar video with local model '{args.local_model}'...")
     result = heygen.generate_with_local_models(
         prompt=args.script,
         local_model_type=args.local_model,
@@ -439,13 +463,13 @@ def main():
     )
     
     if result["success"]:
-        print(f"\n✅ HeyGen video generation successful!")
-        print(f"   Video saved to: {result['video_path']}")
-        print(f"   Task ID: {result.get('task_id', 'N/A')}")
-        print(f"   File size: {result.get('file_size_bytes', 0) / 1024 / 1024:.1f} MB")
+        log_success(f"\nHeyGen video generation successful!")
+        log_info(f"   Video saved to: {result['video_path']}")
+        log_info(f"   Task ID: {result.get('task_id', 'N/A')}")
+        log_info(f"   File size: {result.get('file_size_bytes', 0) / 1024 / 1024:.1f} MB")
     else:
-        print(f"\n❌ HeyGen video generation failed:")
-        print(f"   Error: {result.get('error', 'Unknown error')}")
+        log_error(f"\nHeyGen video generation failed:")
+        log_error(f"   Error: {result.get('error', 'Unknown error')}")
 
 if __name__ == "__main__":
     main()

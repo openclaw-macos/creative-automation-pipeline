@@ -15,6 +15,7 @@ BRIEF_FILE="$SCRIPT_DIR/configs/brief.json"
 # Default target region
 TARGET_REGION="USA"
 UPLOAD_TO_DRIVE=false
+VERBOSE=false
 DRIVE_SERVICE_ACCOUNT="/Users/youee-mac/A42_Folder/google_serviceaccount/service_account.json"
 DRIVE_FOLDER_ID="1XdhY-6U624J_ml-MulmMfhQ5zrn9ja1H"
 
@@ -41,9 +42,13 @@ while [[ $# -gt 0 ]]; do
             BRIEF_FILE="$2"
             shift 2
             ;;
+        --verbose)
+            VERBOSE=true
+            shift
+            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--target-region REGION] [--upload-to-drive] [--drive-service-account PATH] [--drive-folder-id ID] [--brief PATH]"
+            echo "Usage: $0 [--target-region REGION] [--upload-to-drive] [--drive-service-account PATH] [--drive-folder-id ID] [--brief PATH] [--verbose]"
             exit 1
             ;;
     esac
@@ -176,6 +181,11 @@ for PRODUCT in $(echo $PRODUCTS | tr ',' ' '); do
         "--no-report"
     )
     
+    # Add verbose flag if requested
+    if [ "$VERBOSE" = true ]; then
+        CMD_ARGS+=(--verbose)
+    fi
+    
     # Run generation
     $PYTHON_EXEC "$SRC_DIR/comfyui_generate.py" "${CMD_ARGS[@]}"
     
@@ -219,11 +229,18 @@ for BASE_IMAGE in "${BASE_IMAGES[@]}"; do
     # Generate aspect ratios
     echo "  Generating 3 aspect ratios (1:1, 16:9, 9:16)..."
     
-    $PYTHON_EXEC "$SRC_DIR/aspect_ratio.py" \
-        --image "$BASE_IMAGE" \
-        --output-dir "$OUTPUTS_DIR/images/aspect_ratios" \
-        --product "$PRODUCT_NAME" \
+    ASPECT_ARGS=(
+        --image "$BASE_IMAGE"
+        --output-dir "$OUTPUTS_DIR/images/aspect_ratios"
+        --product "$PRODUCT_NAME"
         --method "center_crop"
+    )
+    
+    if [ "$VERBOSE" = true ]; then
+        ASPECT_ARGS+=(--verbose)
+    fi
+    
+    $PYTHON_EXEC "$SRC_DIR/aspect_ratio.py" "${ASPECT_ARGS[@]}"
     
     # Add logo to each aspect ratio
     if [ -n "$LOGO_PATH" ] && [ -f "$LOGO_PATH" ]; then
@@ -237,11 +254,18 @@ for BASE_IMAGE in "${BASE_IMAGES[@]}"; do
             OUTPUT_IMAGE="$OUTPUTS_DIR/images/with_logo/${CLEAN_NAME}_${RATIO}_with_logo.png"
             
             if [ -f "$INPUT_IMAGE" ]; then
-                $PYTHON_EXEC "$SRC_DIR/aspect_ratio.py" \
-                    --image "$INPUT_IMAGE" \
-                    --output-dir "$OUTPUTS_DIR/images/with_logo" \
-                    --product "${CLEAN_NAME}_${RATIO}" \
+                ASPECT_ARGS2=(
+                    --image "$INPUT_IMAGE"
+                    --output-dir "$OUTPUTS_DIR/images/with_logo"
+                    --product "${CLEAN_NAME}_${RATIO}"
                     --logo "$LOGO_PATH"
+                )
+                
+                if [ "$VERBOSE" = true ]; then
+                    ASPECT_ARGS2+=(--verbose)
+                fi
+                
+                $PYTHON_EXEC "$SRC_DIR/aspect_ratio.py" "${ASPECT_ARGS2[@]}"
                 
                 if [ -f "$OUTPUT_IMAGE" ]; then
                     ALL_IMAGES_WITH_LOGO+=("$OUTPUT_IMAGE")

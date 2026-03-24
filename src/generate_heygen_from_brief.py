@@ -14,12 +14,19 @@ from typing import Dict, Optional
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(SCRIPT_DIR)
 
+# Unified logging
+try:
+    from utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
+except ImportError:
+    # Fallback for when run as module
+    from .utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
+
 try:
     from heygen_integration import HeyGenIntegration
     from localization import Localization
     HEYGEN_AVAILABLE = True
 except ImportError as e:
-    print(f"WARNING: HeyGen integration not available: {e}")
+    log_warning(f"HeyGen integration not available: {e}")
     HEYGEN_AVAILABLE = False
 
 def load_brief(brief_path: str) -> Dict:
@@ -64,10 +71,10 @@ def generate_heygen_video_from_brief(
     try:
         # Load brief
         brief = load_brief(brief_path)
-        print(f"✅ Loaded brief: {brief_path}")
-        print(f"   Products: {', '.join(brief['products'])}")
-        print(f"   Region: {brief['target_region']}")
-        print(f"   Audience: {brief['audience']}")
+        log_success(f"Loaded brief: {brief_path}")
+        log_info(f"   Products: {', '.join(brief['products'])}")
+        log_info(f"   Region: {brief['target_region']}")
+        log_info(f"   Audience: {brief['audience']}")
         
         # Initialize localization
         loc = Localization(use_mock=use_mock_translation, translation_api="libre")
@@ -80,8 +87,8 @@ def generate_heygen_video_from_brief(
         if not script:
             script = brief.get("campaign_message", "")
         
-        print(f"   Script length: {len(script)} characters")
-        print(f"   Language: {localized.get('language_code', 'en')}")
+        log_info(f"   Script length: {len(script)} characters")
+        log_info(f"   Language: {localized.get('language_code', 'en')}")
         
         # Initialize HeyGen integration
         heygen = HeyGenIntegration(api_key=api_key)
@@ -111,6 +118,8 @@ def generate_heygen_video_from_brief(
 
 def main():
     """Main function."""
+    import logging
+    
     parser = argparse.ArgumentParser(
         description="Generate HeyGen avatar video from campaign brief"
     )
@@ -123,19 +132,32 @@ def main():
     parser.add_argument("--local-model", default="mistral-nemo",
                        choices=["mistral-nemo", "qwen3-vl", "qwen3.5"],
                        help="Local model for script planning")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose debug output")
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
+                       default="INFO", help="Set log level (default: INFO)")
     
     args = parser.parse_args()
     
+    # Set log level based on verbose flag or log-level argument
+    if args.verbose:
+        set_log_level(logging.DEBUG)
+        log_debug("Verbose debug output enabled")
+    else:
+        level = get_log_level(args.log_level)
+        set_log_level(level)
+        if level <= logging.DEBUG:
+            log_debug(f"Log level set to {args.log_level}")
+    
     if not HEYGEN_AVAILABLE:
-        print("ERROR: HeyGen integration not available.")
-        print("Make sure heygen_integration.py is in the src directory.")
+        log_error("HeyGen integration not available.")
+        log_info("Make sure heygen_integration.py is in the src directory.")
         sys.exit(1)
     
-    print("=== HeyGen Avatar Generation from Brief ===")
-    print(f"Brief: {args.brief}")
-    print(f"Output: {args.output}")
-    print(f"Translation: {'Real API' if args.use_real_translation else 'Mock (offline)'}")
-    print()
+    log_info("=== HeyGen Avatar Generation from Brief ===")
+    log_info(f"Brief: {args.brief}")
+    log_info(f"Output: {args.output}")
+    log_info(f"Translation: {'Real API' if args.use_real_translation else 'Mock (offline)'}")
+    log_info("")
     
     # Generate video
     result = generate_heygen_video_from_brief(
@@ -148,21 +170,21 @@ def main():
     
     # Print results
     if result["success"]:
-        print(f"\n✅ HeyGen video generation successful!")
-        print(f"   Video saved to: {result['video_path']}")
-        print(f"   Task ID: {result.get('task_id', 'N/A')}")
-        print(f"   File size: {result.get('file_size_bytes', 0) / 1024 / 1024:.1f} MB")
+        log_success(f"\nHeyGen video generation successful!")
+        log_info(f"   Video saved to: {result['video_path']}")
+        log_info(f"   Task ID: {result.get('task_id', 'N/A')}")
+        log_info(f"   File size: {result.get('file_size_bytes', 0) / 1024 / 1024:.1f} MB")
         
         if "brief" in result:
             brief_info = result["brief"]
-            print(f"\n   Brief info:")
-            print(f"     Products: {', '.join(brief_info['products'])}")
-            print(f"     Region: {brief_info['target_region']}")
-            print(f"     Audience: {brief_info['audience']}")
-            print(f"     Language: {brief_info['language']}")
+            log_info(f"\n   Brief info:")
+            log_info(f"     Products: {', '.join(brief_info['products'])}")
+            log_info(f"     Region: {brief_info['target_region']}")
+            log_info(f"     Audience: {brief_info['audience']}")
+            log_info(f"     Language: {brief_info['language']}")
     else:
-        print(f"\n❌ HeyGen video generation failed:")
-        print(f"   Error: {result.get('error', 'Unknown error')}")
+        log_error(f"\nHeyGen video generation failed:")
+        log_error(f"   Error: {result.get('error', 'Unknown error')}")
 
 if __name__ == "__main__":
     main()

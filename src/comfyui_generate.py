@@ -14,14 +14,25 @@ import time
 import random
 from typing import Any, Dict
 import datetime
+import logging
 
 # Normalize hyphens in command‑line arguments (fixes copy‑paste of '‑' vs '-')
 sys.argv = [arg.replace('‑', '-') for arg in sys.argv]
 
+# Add src directory to path for module imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Unified logging
+try:
+    from utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
+except ImportError:
+    # Fallback for when run as module
+    from .utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level
+
 try:
     import requests
 except ImportError:
-    print("ERROR: 'requests' library not installed. Run: pip install requests")
+    log_error("'requests' library not installed. Run: pip install requests")
     sys.exit(1)
 
 # Import compliance modules (optional)
@@ -31,8 +42,8 @@ try:
     from reporting import PipelineReporter
     COMPLIANCE_MODULES_AVAILABLE = True
 except ImportError as e:
-    print(f"WARNING: Compliance modules not available: {e}")
-    print("  Install with: pip install -r requirements.txt")
+    log_warning(f"Compliance modules not available: {e}")
+    log_warning("Install with: pip install -r requirements.txt")
     COMPLIANCE_MODULES_AVAILABLE = False
 
 # Import video pipeline (optional)
@@ -40,8 +51,8 @@ try:
     from video_pipeline import VideoPipeline
     VIDEO_PIPELINE_AVAILABLE = True
 except ImportError as e:
-    print(f"WARNING: Video pipeline not available: {e}")
-    print("  Video features will be disabled")
+    log_warning(f"Video pipeline not available: {e}")
+    log_warning("Video features will be disabled")
     VIDEO_PIPELINE_AVAILABLE = False
 
 # Import Google Drive integration (optional)
@@ -49,8 +60,8 @@ try:
     from google_drive_integration import GoogleDriveIntegration
     GOOGLE_DRIVE_AVAILABLE = True
 except ImportError as e:
-    print(f"WARNING: Google Drive integration not available: {e}")
-    print("  Google Drive upload will be disabled")
+    log_warning(f"Google Drive integration not available: {e}")
+    log_warning("Google Drive upload will be disabled")
     GOOGLE_DRIVE_AVAILABLE = False
 
 # Default paths (relative to script location)
@@ -264,8 +275,21 @@ def main():
     parser.add_argument("--drive-service-account", default=DEFAULT_SERVICE_ACCOUNT, help=f"Path to Google service account JSON (default: {DEFAULT_SERVICE_ACCOUNT})")
     parser.add_argument("--drive-folder-id", default=DEFAULT_DRIVE_FOLDER_ID, help=f"Google Drive folder ID (default: {DEFAULT_DRIVE_FOLDER_ID})")
     parser.add_argument("--keep-local", action="store_true", default=True, help="Keep local copy of files (always enabled)")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose debug output (sets log level to DEBUG)")
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
+                       default="INFO", help="Set log level (default: INFO)")
     
     args = parser.parse_args()
+    
+    # Set log level based on verbose flag or log-level argument
+    if args.verbose:
+        set_log_level(logging.DEBUG)
+        log_debug("Verbose debug output enabled")
+    else:
+        level = get_log_level(args.log_level)
+        set_log_level(level)
+        if level <= logging.DEBUG:
+            log_debug(f"Log level set to {args.log_level}")
     
     # Load brief.json if provided (overrides individual arguments)
     if args.brief:
@@ -295,11 +319,11 @@ def main():
                 # Store for video generation
                 args.campaign_video_message = brief["campaign_video_message"]
             
-            print(f"✅ Loaded brief from {args.brief}")
-            print(f"   Region: {args.target_region}, Language: {args.target_language or 'auto'}")
+            log_success(f"Loaded brief from {args.brief}")
+            log_info(f"Region: {args.target_region}, Language: {args.target_language or 'auto'}")
             
         except Exception as e:
-            print(f"⚠️  Failed to load brief.json: {e}")
+            log_warning(f"Failed to load brief.json: {e}")
     
     # If using default seed (42), replace with random to avoid cache collisions
     if args.seed == 42:
@@ -311,31 +335,31 @@ def main():
         photo_negative = ", cartoon, drawing, sketch, painting, illustration, CGI, 3D render, line art"
         args.prompt = args.prompt + photo_positive
         args.negative = args.negative + photo_negative
-        print(f"Enhanced prompt for photorealism (use --no-photo to disable)")
+        log_info(f"Enhanced prompt for photorealism (use --no-photo to disable)")
     
     # Legal check (if enabled)
     legal_results = {"passed": True, "matches": []}
     if args.legal_check and COMPLIANCE_MODULES_AVAILABLE:
-        print("Running legal guardrail check...")
+        log_info("Running legal guardrail check...")
         legal_results = run_legal_check(args.campaign_message or args.prompt, args.brand_config)
         if not legal_results["passed"]:
-            print(f"⚠️  Legal guardrail flagged {len(legal_results.get('matches', []))} prohibited words")
+            log_warning(f"Legal guardrail flagged {len(legal_results.get('matches', []))} prohibited words")
             if legal_results.get("flagged_text"):
-                print(f"   Flagged text: {legal_results['flagged_text'][:200]}...")
+                log_info(f"Flagged text: {legal_results['flagged_text'][:200]}...")
             if not args.compliance_check:
                 # If only legal check fails, we may still want to generate but warn
-                print("   Continuing with generation (legal check failure logged)")
+                log_warning("Continuing with generation (legal check failure logged)")
         else:
-            print("✅ Legal check passed")
+            log_success("Legal check passed")
     
     # Load workflow
     try:
         workflow = load_workflow(args.workflow)
     except FileNotFoundError:
-        print(f"ERROR: Workflow file not found: {args.workflow}")
+        log_error(f"Workflow file not found: {args.workflow}")
         sys.exit(1)
     except json.JSONDecodeError as e:
-        print(f"ERROR: Invalid JSON in workflow file: {e}")
+        log_error(f"Invalid JSON in workflow file: {e}")
         sys.exit(1)
     
     # Find positive and negative prompt nodes (assuming they are CLIPTextEncode)
@@ -350,8 +374,8 @@ def main():
         if neg_node is None:
             neg_node = pos_node  # fallback
     except ValueError:
-        print("ERROR: Could not find CLIPTextEncode nodes in workflow.")
-        print("Make sure your workflow has at least one CLIPTextEncode node.")
+        log_error("Could not find CLIPTextEncode nodes in workflow.")
+        log_info("Make sure your workflow has at least one CLIPTextEncode node.")
         sys.exit(1)
     
     # Update prompts in workflow
@@ -366,24 +390,24 @@ def main():
             break
     
     # Queue prompt and wait
-    print(f"Queueing prompt to {args.server}...")
+    log_info(f"Queueing prompt to {args.server}...")
     start_time = time.time()
     
     try:
         prompt_id = queue_prompt(args.server, workflow)
     except requests.exceptions.RequestException as e:
-        print(f"ERROR: Failed to connect to ComfyUI server at {args.server}")
-        print(f"       Make sure ComfyUI is running and accessible.")
-        print(f"       Error: {e}")
+        log_error(f"Failed to connect to ComfyUI server at {args.server}")
+        log_info("Make sure ComfyUI is running and accessible.")
+        log_error(f"Error: {e}")
         sys.exit(1)
     
-    print(f"Prompt queued with ID: {prompt_id}")
-    print("Waiting for completion...")
+    log_info(f"Prompt queued with ID: {prompt_id}")
+    log_info("Waiting for completion...")
     
     try:
         result = wait_for_completion(args.server, prompt_id)
     except requests.exceptions.RequestException as e:
-        print(f"ERROR: Failed to get result from ComfyUI server: {e}")
+        log_error(f"Failed to get result from ComfyUI server: {e}")
         sys.exit(1)
     
     generation_time_ms = int((time.time() - start_time) * 1000)
@@ -398,22 +422,22 @@ def main():
                 filename = img["filename"]
                 subfolder = img.get("subfolder", "")
                 full_path = os.path.join(subfolder, filename) if subfolder else filename
-                print(f"Downloading {full_path}...")
+                log_info(f"Downloading {full_path}...")
                 download_image(args.server, full_path, args.output)
-                print(f"Saved to {args.output}")
+                log_success(f"Saved to {args.output}")
                 image_saved = True
                 break
         if image_saved:
             break
     
     if not image_saved:
-        print("ERROR: No image found in outputs.")
+        log_error("No image found in outputs.")
         sys.exit(1)
     
     # Compliance checks (if enabled)
     compliance_results = {"overall_passed": True, "checks": {}}
     if args.compliance_check and COMPLIANCE_MODULES_AVAILABLE:
-        print("Running brand compliance checks...")
+        log_info("Running brand compliance checks...")
         compliance_results = run_compliance_checks(
             args.output,
             args.brand_config,
@@ -421,17 +445,17 @@ def main():
         )
         
         if compliance_results.get("overall_passed"):
-            print("✅ Brand compliance passed")
+            log_success("Brand compliance passed")
         else:
-            print("⚠️  Brand compliance failed")
+            log_warning("Brand compliance failed")
             for check_name, check_result in compliance_results.get("checks", {}).items():
                 if not check_result.get("passed", False):
-                    print(f"   {check_name}: {check_result.get('reason', 'Unknown')}")
+                    log_info(f"{check_name}: {check_result.get('reason', 'Unknown')}")
     
     # Video generation (if enabled)
     video_results = {"success": False}
     if args.video and VIDEO_PIPELINE_AVAILABLE:
-        print("\n=== Starting Video Pipeline ===")
+        log_info("\n=== Starting Video Pipeline ===")
         
         # Determine output directory
         video_output_dir = args.video_output_dir or os.path.dirname(args.output)
@@ -441,7 +465,7 @@ def main():
         video_message = None
         if hasattr(args, 'campaign_video_message') and args.campaign_video_message:
             video_message = args.campaign_video_message
-            print("Using campaign_video_message from brief")
+            log_info("Using campaign_video_message from brief")
         elif args.campaign_message:
             video_message = args.campaign_message
         else:
@@ -459,17 +483,17 @@ def main():
         )
         
         if video_results.get("success"):
-            print("✅ Video pipeline completed successfully!")
-            print(f"   Text overlay: {video_results.get('text_overlay_path')}")
-            print(f"   Final image: {video_results.get('final_image_path')}")
-            print(f"   Voiceover: {video_results.get('audio_path')}")
-            print(f"   Video: {video_results.get('video_path')}")
+            log_success("Video pipeline completed successfully!")
+            log_info(f"Text overlay: {video_results.get('text_overlay_path')}")
+            log_info(f"Final image: {video_results.get('final_image_path')}")
+            log_info(f"Voiceover: {video_results.get('audio_path')}")
+            log_info(f"Video: {video_results.get('video_path')}")
         else:
-            print(f"⚠️  Video pipeline failed: {video_results.get('reason', 'Unknown error')}")
+            log_warning(f"Video pipeline failed: {video_results.get('reason', 'Unknown error')}")
     
     # Reporting (if not disabled)
     if not args.no_report and COMPLIANCE_MODULES_AVAILABLE:
-        print("Logging generation to database...")
+        log_info("Logging generation to database...")
         try:
             reporter = PipelineReporter(db_path=DEFAULT_DB_PATH, json_log_path=DEFAULT_JSON_REPORT)
             log_id = log_generation(
@@ -485,20 +509,20 @@ def main():
                 workflow_name=os.path.basename(args.workflow),
                 seed=args.seed
             )
-            print(f"✅ Logged generation with ID: {log_id}")
+            log_success(f"Logged generation with ID: {log_id}")
             
             # Print summary stats
             stats = reporter.get_summary_stats()
-            print(f"   Total generations: {stats.get('total_generations', 0)}")
-            print(f"   Compliance pass rate: {stats.get('compliance_pass_rate', 0):.1f}%")
+            log_info(f"Total generations: {stats.get('total_generations', 0)}")
+            log_info(f"Compliance pass rate: {stats.get('compliance_pass_rate', 0):.1f}%")
             
         except Exception as e:
-            print(f"⚠️  Failed to log generation: {e}")
+            log_warning(f"Failed to log generation: {e}")
     
     # Google Drive upload (if enabled)
     drive_results = {"success": False}
     if args.upload_to_drive and GOOGLE_DRIVE_AVAILABLE:
-        print("\n=== Uploading to Google Drive ===")
+        log_info("\n=== Uploading to Google Drive ===")
         try:
             # Initialize Google Drive integration
             drive = GoogleDriveIntegration(
@@ -536,7 +560,7 @@ def main():
                         'link': file_metadata.get('webViewLink')
                     })
                 except Exception as e:
-                    print(f"⚠️  Failed to upload {file_path}: {e}")
+                    log_warning(f"Failed to upload {file_path}: {e}")
             
             drive_results = {
                 "success": len(uploaded_files) > 0,
@@ -546,30 +570,30 @@ def main():
             }
             
             if drive_results["success"]:
-                print(f"✅ Google Drive upload completed: {drive_results['uploaded_count']}/{drive_results['total_files']} files uploaded")
+                log_success(f"Google Drive upload completed: {drive_results['uploaded_count']}/{drive_results['total_files']} files uploaded")
                 for uploaded in uploaded_files:
-                    print(f"   📎 {os.path.basename(uploaded['local_path'])}: {uploaded['link']}")
+                    log_info(f"📎 {os.path.basename(uploaded['local_path'])}: {uploaded['link']}")
             else:
-                print("⚠️  Google Drive upload failed or no files were uploaded")
+                log_warning("Google Drive upload failed or no files were uploaded")
                 
         except Exception as e:
-            print(f"⚠️  Google Drive upload failed: {e}")
+            log_warning(f"Google Drive upload failed: {e}")
             drive_results = {"success": False, "error": str(e)}
     elif args.upload_to_drive and not GOOGLE_DRIVE_AVAILABLE:
-        print("⚠️  Google Drive upload requested but Google API libraries not available")
-        print("    Install with: pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib")
+        log_warning("Google Drive upload requested but Google API libraries not available")
+        log_info("Install with: pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib")
     
-    print(f"\n🎉 Generation completed in {generation_time_ms}ms")
-    print(f"   Image: {args.output}")
-    print(f"   Dimensions: {args.width}x{args.height}")
+    log_success(f"Generation completed in {generation_time_ms}ms")
+    log_info(f"Image: {args.output}")
+    log_info(f"Dimensions: {args.width}x{args.height}")
     if args.compliance_check:
-        print(f"   Compliance: {'PASS' if compliance_results.get('overall_passed') else 'FAIL'}")
+        log_info(f"Compliance: {'PASS' if compliance_results.get('overall_passed') else 'FAIL'}")
     if args.legal_check:
-        print(f"   Legal: {'PASS' if legal_results.get('passed') else 'FAIL'}")
+        log_info(f"Legal: {'PASS' if legal_results.get('passed') else 'FAIL'}")
     if args.video:
-        print(f"   Video: {'SUCCESS' if video_results.get('success') else 'FAILED'}")
+        log_info(f"Video: {'SUCCESS' if video_results.get('success') else 'FAILED'}")
     if args.upload_to_drive:
-        print(f"   Google Drive: {'UPLOADED' if drive_results.get('success') else 'FAILED'}")
+        log_info(f"Google Drive: {'UPLOADED' if drive_results.get('success') else 'FAILED'}")
     
     # Exit with non-zero code if compliance/legal failed and strict mode?
     # For now, just warn.

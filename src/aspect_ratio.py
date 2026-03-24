@@ -5,8 +5,18 @@ Generates multiple aspect ratios from base images.
 """
 import os
 import sys
+import logging
 from PIL import Image
 from typing import List, Tuple, Dict
+
+# Add src directory to path for module imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, set_log_level, get_log_level
+except ImportError:
+    # Fallback for when run as module
+    from .utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, set_log_level, get_log_level
 
 # Standard aspect ratios for social media
 ASPECT_RATIOS = {
@@ -108,7 +118,7 @@ def resize_to_aspect_ratio(image_path: str, output_path: str,
         return output_path
         
     except Exception as e:
-        print(f"ERROR resizing {image_path}: {e}")
+        log_error(f"Resizing {image_path}: {e}")
         return ""
 
 def generate_aspect_ratios(base_image_path: str, output_dir: str, 
@@ -141,9 +151,9 @@ def generate_aspect_ratios(base_image_path: str, output_dir: str,
         
         if result:
             results[ratio_name] = result
-            print(f"✅ Generated {ratio_name} ({width}x{height}): {output_path}")
+            log_success(f"Generated {ratio_name} ({width}x{height}): {output_path}")
         else:
-            print(f"❌ Failed to generate {ratio_name} for {product_name}")
+            log_failure(f"Failed to generate {ratio_name} for {product_name}")
     
     return results
 
@@ -164,7 +174,7 @@ def add_logo_to_image(image_path: str, logo_path: str, output_path: str,
     """
     try:
         if not os.path.exists(logo_path):
-            print(f"WARNING: Logo not found at {logo_path}")
+            log_warning(f"Logo not found at {logo_path}")
             return image_path
         
         # Open images
@@ -212,7 +222,7 @@ def add_logo_to_image(image_path: str, logo_path: str, output_path: str,
         return output_path
         
     except Exception as e:
-        print(f"ERROR adding logo to {image_path}: {e}")
+        log_error(f"Adding logo to {image_path}: {e}")
         return image_path
 
 def main():
@@ -226,30 +236,43 @@ def main():
     parser.add_argument("--method", default="center_crop", choices=["center_crop", "letterbox", "stretch"],
                        help="Resizing method")
     parser.add_argument("--logo", help="Path to logo for overlay")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose debug output")
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
+                       default="INFO", help="Set log level (default: INFO)")
     
     args = parser.parse_args()
     
-    print("=== Testing Aspect Ratio Generation ===")
-    print(f"Input: {args.image}")
-    print(f"Output: {args.output_dir}")
-    print(f"Method: {args.method}")
-    print()
+    # Set log level based on verbose flag or log-level argument
+    if args.verbose:
+        set_log_level(logging.DEBUG)
+        log_debug("Verbose debug output enabled")
+    else:
+        level = get_log_level(args.log_level)
+        set_log_level(level)
+        if level <= logging.DEBUG:
+            log_debug(f"Log level set to {args.log_level}")
+    
+    log_info("=== Testing Aspect Ratio Generation ===")
+    log_info(f"Input: {args.image}")
+    log_info(f"Output: {args.output_dir}")
+    log_info(f"Method: {args.method}")
+    log_info("")
     
     # Generate aspect ratios
     results = generate_aspect_ratios(
         args.image, args.output_dir, args.product, args.method
     )
     
-    print(f"\nGenerated {len(results)} aspect ratios")
+    log_info(f"Generated {len(results)} aspect ratios")
     
     # Add logo if provided
     if args.logo:
-        print(f"\nAdding logo: {args.logo}")
+        log_info(f"Adding logo: {args.logo}")
         for ratio_name, image_path in results.items():
             output_with_logo = image_path.replace(".png", "_with_logo.png")
             result = add_logo_to_image(image_path, args.logo, output_with_logo)
             if result:
-                print(f"✅ Added logo to {ratio_name}: {output_with_logo}")
+                log_success(f"Added logo to {ratio_name}: {output_with_logo}")
 
 if __name__ == "__main__":
     main()

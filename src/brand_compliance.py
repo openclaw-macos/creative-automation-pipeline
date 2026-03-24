@@ -9,12 +9,22 @@ import sys
 from typing import List, Tuple, Optional, Dict, Any
 import numpy as np
 
+# Add src directory to path for module imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Unified logging
+try:
+    from utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
+except ImportError:
+    # Fallback for when run as module
+    from .utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
+
 try:
     import cv2
     OPENCV_AVAILABLE = True
 except ImportError:
     OPENCV_AVAILABLE = False
-    print("WARNING: OpenCV not installed. Brand compliance checks will be limited.")
+    log_warning("OpenCV not installed. Brand compliance checks will be limited.")
     # Provide dummy functions for type hints
     cv2 = None
 
@@ -46,9 +56,9 @@ class BrandComplianceChecker:
         if OPENCV_AVAILABLE and self.logo_path and os.path.exists(self.logo_path):
             self.logo_img = cv2.imread(self.logo_path, cv2.IMREAD_COLOR)
             if self.logo_img is None:
-                print(f"WARNING: Could not load logo image from {self.logo_path}")
+                log_warning(f"Could not load logo image from {self.logo_path}")
         elif self.logo_path:
-            print(f"WARNING: Logo image specified but OpenCV not available or file missing: {self.logo_path}")
+            log_warning(f"Logo image specified but OpenCV not available or file missing: {self.logo_path}")
     
     def hex_to_rgb(self, hex_color: str) -> Tuple[int, int, int]:
         """Convert hex color (#RRGGBB) to RGB tuple."""
@@ -194,17 +204,33 @@ class BrandComplianceChecker:
 
 def main():
     """Test the compliance checker with a sample image."""
-    if len(sys.argv) < 2:
-        print("Usage: python brand_compliance.py <image_path> [config_path]")
-        sys.exit(1)
+    import argparse
+    import logging
     
-    image_path = sys.argv[1]
-    config_path = sys.argv[2] if len(sys.argv) > 2 else "../configs/brand_config.json"
+    parser = argparse.ArgumentParser(description="Brand compliance checker")
+    parser.add_argument("image_path", help="Path to image file to check")
+    parser.add_argument("config_path", nargs="?", default="../configs/brand_config.json", 
+                       help="Path to brand configuration JSON (default: ../configs/brand_config.json)")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose debug output")
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
+                       default="INFO", help="Set log level (default: INFO)")
     
-    checker = BrandComplianceChecker(config_path)
-    results = checker.run_compliance_checks(image_path)
+    args = parser.parse_args()
     
-    print(json.dumps(results, indent=2))
+    # Set log level based on verbose flag or log-level argument
+    if args.verbose:
+        set_log_level(logging.DEBUG)
+        log_debug("Verbose debug output enabled")
+    else:
+        level = get_log_level(args.log_level)
+        set_log_level(level)
+        if level <= logging.DEBUG:
+            log_debug(f"Log level set to {args.log_level}")
+    
+    checker = BrandComplianceChecker(args.config_path)
+    results = checker.run_compliance_checks(args.image_path)
+    
+    log_info(json.dumps(results, indent=2))
 
 
 if __name__ == "__main__":

@@ -14,13 +14,23 @@ import requests
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import numpy as np
 
+# Add src directory to path for module imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Unified logging
+try:
+    from utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
+except ImportError:
+    # Fallback for when run as module
+    from .utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step
+
 # Try to import OpenCV for better image processing
 try:
     import cv2
     OPENCV_AVAILABLE = True
 except ImportError:
     OPENCV_AVAILABLE = False
-    print("WARNING: OpenCV not available. Using PIL fallback for video processing.")
+    log_warning("OpenCV not available. Using PIL fallback for video processing.")
 
 # Import localization module
 try:
@@ -32,7 +42,7 @@ except ImportError:
         LOCALIZATION_AVAILABLE = True
     except ImportError:
         LOCALIZATION_AVAILABLE = False
-        print("WARNING: Localization module not available. Using English-only fallback.")
+        log_warning("Localization module not available. Using English-only fallback.")
 
 class VideoPipeline:
     def __init__(self, brand_config_path: str = "../configs/brand_config.json", 
@@ -64,7 +74,7 @@ class VideoPipeline:
         else:
             self.language_code = "en"
             self.voice_code = "en-US"
-            print("WARNING: Localization not available, using English defaults")
+            log_warning("Localization not available, using English defaults")
         
         self.logo_path = self.config.get("logo_path", "")
         self.text_settings = self.config.get("text_overlay_settings", {})
@@ -194,7 +204,7 @@ class VideoPipeline:
             return output_path
             
         except Exception as e:
-            print(f"ERROR in add_text_overlay: {e}")
+            log_error(f"add_text_overlay: {e}")
             # Return original image if overlay fails
             import shutil
             shutil.copy2(image_path, output_path)
@@ -214,7 +224,7 @@ class VideoPipeline:
                 if os.path.exists(small_logo):
                     logo_path = small_logo
                 else:
-                    print(f"WARNING: Logo not found at {logo_path}")
+                    log_warning(f"Logo not found at {logo_path}")
                     return image_path
             
             # Open images
@@ -258,7 +268,7 @@ class VideoPipeline:
             return output_path
             
         except Exception as e:
-            print(f"ERROR in add_logo_overlay: {e}")
+            log_error(f"add_logo_overlay: {e}")
             import shutil
             shutil.copy2(image_path, output_path)
             return output_path
@@ -291,23 +301,23 @@ class VideoPipeline:
                 "speed": 1.0
             }
             
-            print(f"Generating voiceover with Voicebox at {voicebox_url}...")
-            print(f"  Language: {language}, Text length: {len(text)} chars")
+            log_info(f"Generating voiceover with Voicebox at {voicebox_url}...")
+            log_info(f"Language: {language}, Text length: {len(text)} chars")
             response = requests.post(api_url, json=payload, timeout=30)
             
             if response.status_code == 200:
                 with open(output_path, "wb") as f:
                     f.write(response.content)
-                print(f"✅ Voiceover saved to {output_path}")
+                log_success(f"Voiceover saved to {output_path}")
                 return output_path
             else:
-                print(f"⚠️  Voicebox API error: {response.status_code} - {response.text}")
+                log_warning(f"Voicebox API error: {response.status_code} - {response.text}")
                 # Fallback: create silent audio
                 self._create_silent_audio(output_path, duration=5)
                 return output_path
                 
         except Exception as e:
-            print(f"⚠️  Voiceover generation failed: {e}")
+            log_warning(f"Voiceover generation failed: {e}")
             # Fallback: create silent audio
             self._create_silent_audio(output_path, duration=5)
             return output_path
@@ -358,17 +368,17 @@ class VideoPipeline:
                 output_path
             ]
             
-            print(f"Creating video with FFmpeg: {' '.join(cmd[:8])}...")
+            log_info(f"Creating video with FFmpeg: {' '.join(cmd[:8])}...")
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode == 0:
-                print(f"✅ Video created: {output_path}")
+                log_success(f"Video created: {output_path}")
                 # Clean up temporary mixed audio file if created
                 if mixed_audio_path and mixed_audio_path != audio_path and os.path.exists(mixed_audio_path):
                     os.unlink(mixed_audio_path)
                 return output_path
             else:
-                print(f"⚠️  FFmpeg error: {result.stderr}")
+                log_warning(f"FFmpeg error (video): {result.stderr}")
                 # Clean up temporary mixed audio file if created
                 if mixed_audio_path and mixed_audio_path != audio_path and os.path.exists(mixed_audio_path):
                     os.unlink(mixed_audio_path)
@@ -376,7 +386,7 @@ class VideoPipeline:
                 return self._create_simple_video(image_path, audio_path, output_path, duration_seconds)
                 
         except Exception as e:
-            print(f"ERROR in create_video: {e}")
+            log_error(f"create_video: {e}")
             # Clean up temporary mixed audio file if created
             if 'mixed_audio_path' in locals() and mixed_audio_path and mixed_audio_path != audio_path and os.path.exists(mixed_audio_path):
                 os.unlink(mixed_audio_path)
@@ -483,14 +493,14 @@ class VideoPipeline:
                 output_path
             ]
             
-            print(f"Mixing voiceover with background music: {self.background_music}")
+            log_info(f"Mixing voiceover with background music: {self.background_music}")
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode == 0:
-                print(f"✅ Audio mixed with background music: {output_path}")
+                log_success(f"Audio mixed with background music: {output_path}")
                 return output_path
             else:
-                print(f"⚠️  Audio mixing failed: {result.stderr}")
+                log_warning(f"Audio mixing failed: {result.stderr}")
                 # Fallback to voiceover only
                 if voiceover_path != output_path:
                     import shutil
@@ -498,7 +508,7 @@ class VideoPipeline:
                 return output_path
                 
         except Exception as e:
-            print(f"ERROR in audio mixing: {e}")
+            log_error(f"audio mixing: {e}")
             # Fallback to voiceover only
             if voiceover_path != output_path:
                 import shutil
@@ -536,10 +546,10 @@ class VideoPipeline:
                 duration_per_image = audio_duration / len(image_paths)
                 total_duration = audio_duration
             
-            print(f"Creating slideshow with {len(image_paths)} images")
-            print(f"  Duration per image: {duration_per_image}s")
-            print(f"  Total duration: {total_duration}s")
-            print(f"  Audio duration: {audio_duration}s")
+            log_info(f"Creating slideshow with {len(image_paths)} images")
+            log_info(f"Duration per image: {duration_per_image}s")
+            log_info(f"Total duration: {total_duration}s")
+            log_info(f"Audio duration: {audio_duration}s")
             
             # Mix voiceover with background music if available
             mixed_audio_path = None
@@ -602,7 +612,7 @@ class VideoPipeline:
                 output_path
             ])
             
-            print(f"Creating slideshow with FFmpeg...")
+            log_info(f"Creating slideshow with FFmpeg...")
             result = subprocess.run(cmd, capture_output=True, text=True)
             
             # Clean up temporary mixed audio file if created
@@ -610,15 +620,15 @@ class VideoPipeline:
                 os.unlink(mixed_audio_path)
             
             if result.returncode == 0:
-                print(f"✅ Slideshow video created: {output_path}")
+                log_success(f"Slideshow video created: {output_path}")
                 return output_path
             else:
-                print(f"⚠️  FFmpeg error: {result.stderr}")
+                log_warning(f"FFmpeg error (slideshow): {result.stderr}")
                 # Fallback to simple video with first image
                 return self._create_simple_video(image_paths[0], audio_path, output_path, total_duration)
                 
         except Exception as e:
-            print(f"ERROR in create_slideshow: {e}")
+            log_error(f"create_slideshow: {e}")
             # Clean up temporary mixed audio file if created
             if 'mixed_audio_path' in locals() and mixed_audio_path and mixed_audio_path != audio_path and os.path.exists(mixed_audio_path):
                 os.unlink(mixed_audio_path)
@@ -652,13 +662,27 @@ class VideoPipeline:
 def main():
     """Test the video pipeline."""
     import argparse
+    import logging
     
     parser = argparse.ArgumentParser(description="Test video pipeline")
     parser.add_argument("--image", required=True, help="Input image path")
     parser.add_argument("--text", required=True, help="Text for overlay")
     parser.add_argument("--output-dir", default="./outputs/video", help="Output directory")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose debug output (sets log level to DEBUG)")
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
+                       default="INFO", help="Set log level (default: INFO)")
     
     args = parser.parse_args()
+    
+    # Set log level based on verbose flag or log-level argument
+    if args.verbose:
+        set_log_level(logging.DEBUG)
+        log_debug("Verbose debug output enabled")
+    else:
+        level = get_log_level(args.log_level)
+        set_log_level(level)
+        if level <= logging.DEBUG:
+            log_debug(f"Log level set to {args.log_level}")
     
     # Create pipeline
     pipeline = VideoPipeline()
@@ -682,11 +706,11 @@ def main():
     video_path = os.path.join(args.output_dir, "final_video.mp4")
     pipeline.create_video(final_image_path, audio_path, video_path)
     
-    print(f"\n✅ Video pipeline completed!")
-    print(f"   Text overlay: {text_overlay_path}")
-    print(f"   Final image: {final_image_path}")
-    print(f"   Voiceover: {audio_path}")
-    print(f"   Video: {video_path}")
+    log_success(f"Video pipeline completed!")
+    log_info(f"Text overlay: {text_overlay_path}")
+    log_info(f"Final image: {final_image_path}")
+    log_info(f"Voiceover: {audio_path}")
+    log_info(f"Video: {video_path}")
 
 if __name__ == "__main__":
     main()

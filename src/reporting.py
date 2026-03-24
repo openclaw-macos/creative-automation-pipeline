@@ -4,11 +4,23 @@ Reporting & Logging Module for Creative Automation Pipeline.
 Logs generation details to SQLite database and/or JSON file.
 """
 import json
+import os
 import sqlite3
 import time
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
+
+# Add src directory to path for module imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Unified logging
+try:
+    from utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
+except ImportError:
+    # Fallback for when run as module
+    from .utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
 
 class PipelineReporter:
     def __init__(self, db_path: str = "../outputs/pipeline_logs.db", json_log_path: str = "../outputs/run_report.json"):
@@ -247,7 +259,7 @@ class PipelineReporter:
         
         logs = self.query_logs(limit=10000)
         if not logs:
-            print("No logs to export.")
+            log_info("No logs to export.")
             return
         
         fieldnames = logs[0].keys()
@@ -257,11 +269,30 @@ class PipelineReporter:
             writer.writeheader()
             writer.writerows(logs)
         
-        print(f"Exported {len(logs)} logs to {output_path}")
+        log_info(f"Exported {len(logs)} logs to {output_path}")
 
 
 def main():
     """Test the reporting module."""
+    import argparse
+    import logging
+    
+    parser = argparse.ArgumentParser(description="Test reporting module")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose debug output")
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
+                       default="INFO", help="Set log level (default: INFO)")
+    args = parser.parse_args()
+    
+    # Set log level based on verbose flag or log-level argument
+    if args.verbose:
+        set_log_level(logging.DEBUG)
+        log_debug("Verbose debug output enabled")
+    else:
+        level = get_log_level(args.log_level)
+        set_log_level(level)
+        if level <= logging.DEBUG:
+            log_debug(f"Log level set to {args.log_level}")
+    
     reporter = PipelineReporter(db_path=":memory:", json_log_path="/tmp/test_report.json")
     
     # Log some test entries
@@ -283,17 +314,17 @@ def main():
             workflow_name="default",
             seed=42 + i
         )
-        print(f"Logged generation with ID: {log_id}")
+        log_info(f"Logged generation with ID: {log_id}")
     
     # Query logs
     logs = reporter.query_logs(limit=5)
-    print(f"\nRetrieved {len(logs)} logs:")
+    log_info(f"\nRetrieved {len(logs)} logs:")
     for log in logs:
-        print(f"  {log['timestamp']} - {log['product']} - {log['compliance_status']}")
+        log_info(f"  {log['timestamp']} - {log['product']} - {log['compliance_status']}")
     
     # Get summary stats
     stats = reporter.get_summary_stats()
-    print(f"\nSummary stats: {stats}")
+    log_info(f"\nSummary stats: {stats}")
 
 
 if __name__ == "__main__":

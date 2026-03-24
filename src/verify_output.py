@@ -6,30 +6,55 @@ This helps verify the output location when using the ComfyUI skill.
 import os
 import sys
 
+# Add src directory to path for module imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Unified logging
+try:
+    from utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
+except ImportError:
+    # Fallback for when run as module
+    from .utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
+
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python verify_output.py <output_path>")
-        sys.exit(1)
+    import argparse
+    import logging
     
-    output_path = sys.argv[1]
-    abs_path = os.path.abspath(output_path)
-    print(f"Output will be saved to:")
-    print(f"  {abs_path}")
-    print(f"Directory: {os.path.dirname(abs_path)}")
+    parser = argparse.ArgumentParser(description="Verify output path and provide absolute path for pipeline integration")
+    parser.add_argument("output_path", help="Output file path")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose debug output")
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
+                       default="INFO", help="Set log level (default: INFO)")
+    args = parser.parse_args()
+    
+    # Set log level based on verbose flag or log-level argument
+    if args.verbose:
+        set_log_level(logging.DEBUG)
+        log_debug("Verbose debug output enabled")
+    else:
+        level = get_log_level(args.log_level)
+        set_log_level(level)
+        if level <= logging.DEBUG:
+            log_debug(f"Log level set to {args.log_level}")
+    
+    abs_path = os.path.abspath(args.output_path)
+    log_info(f"Output will be saved to:")
+    log_info(f"  {abs_path}")
+    log_info(f"Directory: {os.path.dirname(abs_path)}")
     
     # Check if directory exists
     dir_path = os.path.dirname(abs_path)
     if dir_path:
         if os.path.isdir(dir_path):
-            print("✓ Directory exists.")
+            log_success("Directory exists.")
         else:
-            print("⚠ Directory does not exist; it will be created by the script.")
+            log_warning("Directory does not exist; it will be created by the script.")
     else:
-        print("⚠ Output is in current directory.")
+        log_warning("Output is in current directory.")
     
     # Suggest absolute path for pipeline integration
-    print("\nFor integration with the FDE pipeline, use an absolute path:")
-    print(f'  --output "{abs_path}"')
+    log_info("\nFor integration with the FDE pipeline, use an absolute path:")
+    log_info(f'  --output "{abs_path}"')
 
 if __name__ == "__main__":
     main()

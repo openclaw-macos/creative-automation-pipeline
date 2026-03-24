@@ -5,8 +5,20 @@ Flags prohibited words in campaign messages before they are sent to image overla
 """
 import json
 import re
+import sys
+import os
 import yaml
 from typing import List, Dict, Any, Union
+
+# Add src directory to path for module imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Unified logging
+try:
+    from utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
+except ImportError:
+    # Fallback for when run as module
+    from .utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step
 
 class LegalGuardrail:
     def __init__(self, config_path: str = "../configs/brand_config.json"):
@@ -152,13 +164,13 @@ def main():
     ]
     
     for msg in test_messages:
-        print(f"\nTesting message: {msg[:50]}...")
+        log_info(f"\nTesting message: {msg[:50]}...")
         result = guardrail.check_campaign_message(msg)
-        print(f"  Passed: {result['passed']}")
+        log_info(f"  Passed: {result['passed']}")
         if result.get('matches'):
-            print(f"  Matches: {result['matches']}")
+            log_info(f"  Matches: {result['matches']}")
         if result.get('flagged_text'):
-            print(f"  Flagged: {result['flagged_text'][:100]}...")
+            log_info(f"  Flagged: {result['flagged_text'][:100]}...")
 
 
 if __name__ == "__main__":
