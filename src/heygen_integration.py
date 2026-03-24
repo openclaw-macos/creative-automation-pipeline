@@ -384,14 +384,35 @@ def main():
     parser.add_argument("--script", default="Hello, this is a test of the HeyGen avatar system.", help="Script for avatar to speak")
     parser.add_argument("--output", default="output/heygen_test.mp4", help="Output video path")
     parser.add_argument("--local-model", choices=["mistral-nemo", "qwen3-vl", "qwen3.5"], default="mistral-nemo", help="Local model to use for planning")
+    parser.add_argument("--target-region", default="USA", help="Target region for localization (e.g., USA, Japan, Brazil)")
     
     args = parser.parse_args()
     
     # Initialize HeyGen integration
     heygen = HeyGenIntegration(api_key=args.api_key)
     
+    # Initialize localization
+    try:
+        from localization import Localization
+        loc = Localization(use_mock=True)
+        lang_code = loc.get_language_code(args.target_region)
+        voice_code = loc.get_voice_code(lang_code)
+        
+        # Translate script if not English
+        if lang_code != "en":
+            original_script = args.script
+            args.script = loc.translate_text(original_script, "en", lang_code)
+            print(f"Localization: Region='{args.target_region}', Language='{lang_code}', Voice='{voice_code}'")
+            print(f"Translated script from: '{original_script[:50]}...'")
+            print(f"                    to: '{args.script[:50]}...'")
+        else:
+            print(f"Localization: Region='{args.target_region}', Language='{lang_code}' (no translation needed)")
+    except ImportError:
+        print("WARNING: Localization module not available. Using English defaults.")
+        lang_code = "en"
+    
     # Test available avatars and voices
-    print("Available avatars:")
+    print("\nAvailable avatars:")
     avatars = heygen.get_available_avatars()
     for avatar in avatars[:3]:  # Show first 3
         print(f"  - {avatar.get('name', 'Unknown')} (ID: {avatar.get('avatar_id', 'N/A')})")
@@ -413,7 +434,8 @@ def main():
     result = heygen.generate_with_local_models(
         prompt=args.script,
         local_model_type=args.local_model,
-        output_path=args.output
+        output_path=args.output,
+        language=lang_code
     )
     
     if result["success"]:

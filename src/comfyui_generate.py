@@ -44,6 +44,15 @@ except ImportError as e:
     print("  Video features will be disabled")
     VIDEO_PIPELINE_AVAILABLE = False
 
+# Import Google Drive integration (optional)
+try:
+    from google_drive_integration import GoogleDriveIntegration
+    GOOGLE_DRIVE_AVAILABLE = True
+except ImportError as e:
+    print(f"WARNING: Google Drive integration not available: {e}")
+    print("  Google Drive upload will be disabled")
+    GOOGLE_DRIVE_AVAILABLE = False
+
 # Default paths (relative to script location)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_SERVER = "http://127.0.0.1:8188"
@@ -51,6 +60,8 @@ DEFAULT_WORKFLOW = os.path.join(SCRIPT_DIR, "../configs/default_workflow.json")
 DEFAULT_BRAND_CONFIG = os.path.join(SCRIPT_DIR, "../configs/brand_config.json")
 DEFAULT_DB_PATH = os.path.join(SCRIPT_DIR, "../outputs/pipeline_logs.db")
 DEFAULT_JSON_REPORT = os.path.join(SCRIPT_DIR, "../outputs/run_report.json")
+DEFAULT_SERVICE_ACCOUNT = "/Users/youee-mac/A42_Folder/google_serviceaccount/service_account.json"
+DEFAULT_DRIVE_FOLDER_ID = "1XdhY-6U624J_ml-MulmMfhQ5zrn9ja1H"  # creative-automation-pipeline folder
 
 def load_workflow(path: str) -> Dict[str, Any]:
     """Load workflow JSON from file."""
@@ -172,7 +183,10 @@ def generate_video(
     campaign_message: str,
     brand_config_path: str,
     output_dir: str,
-    product_name: str
+    product_name: str,
+    target_region: str = "USA",
+    target_language: str = None,
+    brief_path: str = None
 ) -> Dict[str, Any]:
     """Generate video with text/logo overlays and voiceover."""
     if not VIDEO_PIPELINE_AVAILABLE:
@@ -183,8 +197,12 @@ def generate_video(
         video_output_dir = os.path.join(output_dir, "video")
         os.makedirs(video_output_dir, exist_ok=True)
         
-        # Initialize video pipeline
-        pipeline = VideoPipeline(brand_config_path)
+        # Initialize video pipeline with localization
+        pipeline = VideoPipeline(
+            brand_config_path, 
+            target_region=target_region,
+            language_code=target_language
+        )
         
         # Step 1: Add text overlay
         text_overlay_path = os.path.join(video_output_dir, f"{product_name}_text_overlay.png")
@@ -237,8 +255,51 @@ def main():
     parser.add_argument("--video", action="store_true", help="Generate video with text/logo overlays and voiceover")
     parser.add_argument("--video-output-dir", help="Directory for video outputs (default: same as image output dir)")
     parser.add_argument("--voicebox-url", default="http://127.0.0.1:17493", help="Voicebox TTS server URL")
+    parser.add_argument("--target-region", default="USA", help="Target region for localization (e.g., USA, Japan, Brazil)")
+    parser.add_argument("--target-language", help="Target language code (e.g., en, ja, de). Overrides region-based mapping")
+    parser.add_argument("--brief", help="Path to brief.json file (overrides individual campaign arguments)")
+    
+    # Google Drive upload arguments (FDE assignment requirement)
+    parser.add_argument("--upload-to-drive", action="store_true", help="Upload outputs to Google Drive")
+    parser.add_argument("--drive-service-account", default=DEFAULT_SERVICE_ACCOUNT, help=f"Path to Google service account JSON (default: {DEFAULT_SERVICE_ACCOUNT})")
+    parser.add_argument("--drive-folder-id", default=DEFAULT_DRIVE_FOLDER_ID, help=f"Google Drive folder ID (default: {DEFAULT_DRIVE_FOLDER_ID})")
+    parser.add_argument("--keep-local", action="store_true", default=True, help="Keep local copy of files (always enabled)")
     
     args = parser.parse_args()
+    
+    # Load brief.json if provided (overrides individual arguments)
+    if args.brief:
+        try:
+            with open(args.brief, 'r', encoding='utf-8') as f:
+                brief = json.load(f)
+            
+            # Override arguments with brief values
+            if "products" in brief and len(brief["products"]) > 0 and not args.prompt:
+                # Generate prompt from first product if prompt not provided
+                args.prompt = f"a sleek {brief['products'][0].lower()} on a modern kitchen counter"
+            
+            if "target_region" in brief:
+                args.target_region = brief["target_region"]
+            
+            if "target_language" in brief:
+                args.target_language = brief["target_language"]
+            
+            if "audience" in brief and not args.campaign_message:
+                # Use audience in campaign message if not provided
+                pass  # We'll handle this later
+            
+            if "campaign_message" in brief:
+                args.campaign_message = brief["campaign_message"]
+            
+            if "campaign_video_message" in brief:
+                # Store for video generation
+                args.campaign_video_message = brief["campaign_video_message"]
+            
+            print(f"✅ Loaded brief from {args.brief}")
+            print(f"   Region: {args.target_region}, Language: {args.target_language or 'auto'}")
+            
+        except Exception as e:
+            print(f"⚠️  Failed to load brief.json: {e}")
     
     # If using default seed (42), replace with random to avoid cache collisions
     if args.seed == 42:
@@ -375,12 +436,26 @@ def main():
         # Determine output directory
         video_output_dir = args.video_output_dir or os.path.dirname(args.output)
         
+        # Determine which message to use for video
+        # Prefer campaign_video_message, then campaign_message, then prompt
+        video_message = None
+        if hasattr(args, 'campaign_video_message') and args.campaign_video_message:
+            video_message = args.campaign_video_message
+            print("Using campaign_video_message from brief")
+        elif args.campaign_message:
+            video_message = args.campaign_message
+        else:
+            video_message = args.prompt
+        
         video_results = generate_video(
             image_path=args.output,
-            campaign_message=args.campaign_message or args.prompt,
+            campaign_message=video_message,
             brand_config_path=args.brand_config,
             output_dir=video_output_dir,
-            product_name=args.product.replace(" ", "_")
+            product_name=args.product.replace(" ", "_"),
+            target_region=args.target_region,
+            target_language=args.target_language if hasattr(args, 'target_language') else None,
+            brief_path=args.brief
         )
         
         if video_results.get("success"):
@@ -420,6 +495,70 @@ def main():
         except Exception as e:
             print(f"⚠️  Failed to log generation: {e}")
     
+    # Google Drive upload (if enabled)
+    drive_results = {"success": False}
+    if args.upload_to_drive and GOOGLE_DRIVE_AVAILABLE:
+        print("\n=== Uploading to Google Drive ===")
+        try:
+            # Initialize Google Drive integration
+            drive = GoogleDriveIntegration(
+                service_account_file=args.drive_service_account,
+                folder_id=args.drive_folder_id
+            )
+            
+            # Collect files to upload
+            files_to_upload = []
+            
+            # Main image
+            if os.path.exists(args.output):
+                files_to_upload.append(args.output)
+            
+            # Video outputs if generated
+            if args.video and video_results.get("success"):
+                video_files = [
+                    video_results.get("text_overlay_path"),
+                    video_results.get("final_image_path"),
+                    video_results.get("audio_path"),
+                    video_results.get("video_path")
+                ]
+                for file_path in video_files:
+                    if file_path and os.path.exists(file_path):
+                        files_to_upload.append(file_path)
+            
+            # Upload files
+            uploaded_files = []
+            for file_path in files_to_upload:
+                try:
+                    file_metadata = drive.upload_file(file_path)
+                    uploaded_files.append({
+                        'local_path': file_path,
+                        'remote_id': file_metadata.get('id'),
+                        'link': file_metadata.get('webViewLink')
+                    })
+                except Exception as e:
+                    print(f"⚠️  Failed to upload {file_path}: {e}")
+            
+            drive_results = {
+                "success": len(uploaded_files) > 0,
+                "uploaded_count": len(uploaded_files),
+                "uploaded_files": uploaded_files,
+                "total_files": len(files_to_upload)
+            }
+            
+            if drive_results["success"]:
+                print(f"✅ Google Drive upload completed: {drive_results['uploaded_count']}/{drive_results['total_files']} files uploaded")
+                for uploaded in uploaded_files:
+                    print(f"   📎 {os.path.basename(uploaded['local_path'])}: {uploaded['link']}")
+            else:
+                print("⚠️  Google Drive upload failed or no files were uploaded")
+                
+        except Exception as e:
+            print(f"⚠️  Google Drive upload failed: {e}")
+            drive_results = {"success": False, "error": str(e)}
+    elif args.upload_to_drive and not GOOGLE_DRIVE_AVAILABLE:
+        print("⚠️  Google Drive upload requested but Google API libraries not available")
+        print("    Install with: pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib")
+    
     print(f"\n🎉 Generation completed in {generation_time_ms}ms")
     print(f"   Image: {args.output}")
     print(f"   Dimensions: {args.width}x{args.height}")
@@ -429,6 +568,8 @@ def main():
         print(f"   Legal: {'PASS' if legal_results.get('passed') else 'FAIL'}")
     if args.video:
         print(f"   Video: {'SUCCESS' if video_results.get('success') else 'FAILED'}")
+    if args.upload_to_drive:
+        print(f"   Google Drive: {'UPLOADED' if drive_results.get('success') else 'FAILED'}")
     
     # Exit with non-zero code if compliance/legal failed and strict mode?
     # For now, just warn.

@@ -1,0 +1,280 @@
+#!/usr/bin/env python3
+"""
+Campaign Manager for Creative Automation Pipeline.
+Handles folder structure, campaign organization, and brief processing.
+Creates numbered folders for campaigns (1_, 2_, etc.) as specified in requirements.
+"""
+import os
+import sys
+import json
+import shutil
+import re
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+from datetime import datetime
+
+class CampaignManager:
+    """
+    Manages campaign folders and brief processing.
+    Creates numbered folders (1_, 2_, etc.) for organized campaign storage.
+    """
+    
+    def __init__(self, campaigns_root: str = "../campaigns"):
+        """
+        Initialize campaign manager.
+        
+        Args:
+            campaigns_root: Root directory for campaign folders
+        """
+        self.campaigns_root = os.path.abspath(campaigns_root)
+        os.makedirs(self.campaigns_root, exist_ok=True)
+        
+        # Load or create campaign index
+        self.index_file = os.path.join(self.campaigns_root, "campaign_index.json")
+        self.campaigns = self._load_index()
+    
+    def _load_index(self) -> Dict:
+        """Load campaign index from file or create new."""
+        if os.path.exists(self.index_file):
+            try:
+                with open(self.index_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except:
+                return {}
+        return {}
+    
+    def _save_index(self):
+        """Save campaign index to file."""
+        with open(self.index_file, 'w', encoding='utf-8') as f:
+            json.dump(self.campaigns, f, indent=2)
+    
+    def get_next_campaign_number(self) -> int:
+        """Get next available campaign number."""
+        if not self.campaigns:
+            return 1
+        
+        # Find highest number
+        numbers = []
+        for campaign_id, info in self.campaigns.items():
+            if campaign_id.startswith("campaign_"):
+                try:
+                    num = int(campaign_id.replace("campaign_", ""))
+                    numbers.append(num)
+                except:
+                    pass
+        
+        return max(numbers) + 1 if numbers else 1
+    
+    def generate_campaign_name(self, brief: Dict) -> str:
+        """
+        Generate campaign folder name from brief.
+        Format: {number}_{product_type}_{region}
+        """
+        # Extract product type (first product)
+        products = brief.get("products", ["Unknown"])
+        product_type = products[0].replace(" ", "_")
+        
+        # Extract region
+        target_region = brief.get("target_region", "Unknown")
+        
+        # Clean region for folder name
+        region_clean = re.sub(r'[^\w\s-]', '', target_region)
+        region_clean = region_clean.replace(" ", "_").replace("/", "_")
+        
+        return f"{product_type}_{region_clean}"
+    
+    def create_campaign_folder(self, brief: Dict, brief_path: str) -> Tuple[str, str]:
+        """
+        Create numbered campaign folder and copy brief.json.
+        
+        Args:
+            brief: Campaign brief dictionary
+            brief_path: Path to source brief.json file
+            
+        Returns:
+            Tuple of (campaign_id, folder_path)
+        """
+        # Get next campaign number
+        campaign_number = self.get_next_campaign_number()
+        
+        # Generate campaign name
+        campaign_name = self.generate_campaign_name(brief)
+        
+        # Create folder name (e.g., "1_Smart_Kitchen_Essentials_North_America")
+        folder_name = f"{campaign_number}_{campaign_name}"
+        folder_path = os.path.join(self.campaigns_root, folder_name)
+        
+        # Create folder
+        os.makedirs(folder_path, exist_ok=True)
+        
+        # Copy brief.json
+        dest_brief_path = os.path.join(folder_path, "brief.json")
+        shutil.copy2(brief_path, dest_brief_path)
+        
+        # Create outputs subdirectories
+        outputs_dir = os.path.join(folder_path, "outputs")
+        os.makedirs(os.path.join(outputs_dir, "images"), exist_ok=True)
+        os.makedirs(os.path.join(outputs_dir, "video"), exist_ok=True)
+        os.makedirs(os.path.join(outputs_dir, "audio"), exist_ok=True)
+        os.makedirs(os.path.join(outputs_dir, "final"), exist_ok=True)
+        
+        # Update index
+        campaign_id = f"campaign_{campaign_number}"
+        self.campaigns[campaign_id] = {
+            "folder_name": folder_name,
+            "folder_path": folder_path,
+            "brief_path": dest_brief_path,
+            "products": brief.get("products", []),
+            "target_region": brief.get("target_region", "Unknown"),
+            "created": datetime.now().isoformat(),
+            "campaign_number": campaign_number
+        }
+        
+        self._save_index()
+        
+        return campaign_id, folder_path
+    
+    def process_brief_file(self, brief_path: str) -> Tuple[str, str]:
+        """
+        Process a brief.json file: create campaign folder and return paths.
+        
+        Args:
+            brief_path: Path to brief.json file
+            
+        Returns:
+            Tuple of (campaign_id, folder_path)
+        """
+        # Load brief
+        with open(brief_path, 'r', encoding='utf-8') as f:
+            brief = json.load(f)
+        
+        # Create campaign folder
+        return self.create_campaign_folder(brief, brief_path)
+    
+    def list_campaigns(self) -> List[Dict]:
+        """List all campaigns in index."""
+        return [
+            {
+                "id": campaign_id,
+                **info
+            }
+            for campaign_id, info in self.campaigns.items()
+        ]
+    
+    def get_campaign_by_number(self, number: int) -> Optional[Dict]:
+        """Get campaign by number."""
+        campaign_id = f"campaign_{number}"
+        return self.campaigns.get(campaign_id)
+    
+    def rename_campaign_folders(self):
+        """
+        Rename campaign folders to maintain sequential numbering.
+        Useful when campaigns are deleted and numbering needs to be compacted.
+        """
+        # Get all campaigns sorted by number
+        campaigns_by_number = []
+        for campaign_id, info in self.campaigns.items():
+            if campaign_id.startswith("campaign_"):
+                try:
+                    num = int(campaign_id.replace("campaign_", ""))
+                    campaigns_by_number.append((num, campaign_id, info))
+                except:
+                    pass
+        
+        campaigns_by_number.sort(key=lambda x: x[0])
+        
+        # Rename folders with sequential numbers
+        new_campaigns = {}
+        for new_number, (old_number, campaign_id, info) in enumerate(campaigns_by_number, 1):
+            if new_number != old_number:
+                # Generate new folder name
+                old_folder_path = info["folder_path"]
+                old_folder_name = info["folder_name"]
+                
+                # Extract base name (without number prefix)
+                base_name = "_".join(old_folder_name.split("_")[1:])
+                new_folder_name = f"{new_number}_{base_name}"
+                new_folder_path = os.path.join(self.campaigns_root, new_folder_name)
+                
+                # Rename folder
+                if os.path.exists(old_folder_path):
+                    shutil.move(old_folder_path, new_folder_path)
+                
+                # Update info
+                info["folder_name"] = new_folder_name
+                info["folder_path"] = new_folder_path
+                info["campaign_number"] = new_number
+            
+            # Update campaign ID
+            new_campaign_id = f"campaign_{new_number}"
+            new_campaigns[new_campaign_id] = info
+        
+        # Update index
+        self.campaigns = new_campaigns
+        self._save_index()
+
+
+def main():
+    """Test campaign manager."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Test Campaign Manager")
+    parser.add_argument("--brief", default="../configs/brief.json", help="Path to brief.json file")
+    parser.add_argument("--list", action="store_true", help="List existing campaigns")
+    parser.add_argument("--rename", action="store_true", help="Rename campaign folders to maintain sequential numbering")
+    
+    args = parser.parse_args()
+    
+    # Initialize campaign manager
+    manager = CampaignManager()
+    
+    if args.list:
+        print("Existing campaigns:")
+        campaigns = manager.list_campaigns()
+        for campaign in campaigns:
+            print(f"  {campaign['campaign_number']}: {campaign['folder_name']}")
+            print(f"     Region: {campaign['target_region']}")
+            print(f"     Products: {', '.join(campaign['products'][:3])}")
+            print(f"     Path: {campaign['folder_path']}")
+            print()
+    
+    elif args.rename:
+        print("Renaming campaign folders to maintain sequential numbering...")
+        manager.rename_campaign_folders()
+        print("Done!")
+    
+    else:
+        # Process brief file
+        print(f"Processing brief file: {args.brief}")
+        if os.path.exists(args.brief):
+            campaign_id, folder_path = manager.process_brief_file(args.brief)
+            print(f"✅ Created campaign folder: {folder_path}")
+            print(f"   Campaign ID: {campaign_id}")
+            
+            # List all campaigns
+            print("\nAll campaigns:")
+            for campaign in manager.list_campaigns():
+                print(f"  {campaign['campaign_number']}: {campaign['folder_name']}")
+        else:
+            print(f"❌ Brief file not found: {args.brief}")
+            print("Creating sample brief...")
+            
+            # Create sample brief
+            sample_brief = {
+                "products": ["Coffee Maker", "Blender"],
+                "target_region": "USA",
+                "audience": "Young professionals 25-35",
+                "campaign_message": "Start your day smarter with our kitchen essentials"
+            }
+            
+            sample_brief_path = "sample_brief.json"
+            with open(sample_brief_path, 'w', encoding='utf-8') as f:
+                json.dump(sample_brief, f, indent=2)
+            
+            campaign_id, folder_path = manager.process_brief_file(sample_brief_path)
+            print(f"✅ Created campaign folder from sample: {folder_path}")
+            os.remove(sample_brief_path)
+
+
+if __name__ == "__main__":
+    main()

@@ -8,7 +8,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="$SCRIPT_DIR/src"
 OUTPUTS_DIR="$SCRIPT_DIR/outputs/heygen"
 
+# Default target region
+TARGET_REGION="USA"
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --target-region)
+            TARGET_REGION="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--target-region REGION]"
+            exit 1
+            ;;
+    esac
+done
+
 echo "=== HeyGen Avatar Integration Demo ==="
+echo "Target Region: $TARGET_REGION"
 echo ""
 
 # Create outputs directory
@@ -47,7 +66,8 @@ $PYTHON_EXEC "$SRC_DIR/heygen_integration.py" \
     --api-key "$HEYGEN_API_KEY" \
     --script "$SCRIPT" \
     --output "$OUTPUTS_DIR/nexagoods_avatar.mp4" \
-    --local-model "mistral-nemo"
+    --local-model "mistral-nemo" \
+    --target-region "$TARGET_REGION"
 
 echo ""
 echo "========================================="

@@ -1,180 +1,401 @@
-# Creative Automation Pipeline – Proof of Concept
+# Creative Automation Pipeline – Complete Campaign Automation System
 
-## Overview
-This proof‑of‑concept (POC) demonstrates an end‑to‑end creative automation pipeline for a global consumer goods company. The pipeline generates branded product images, applies legal guardrails, performs compliance checks, and logs every asset for auditability. It is built on top of existing local tools (ComfyUI for image generation, Voicebox for TTS) and is designed to be extended to a production‑grade system.
+## 🎯 Overview
+A complete end‑to‑end creative automation pipeline for global consumer goods campaigns. Generates branded product images, creates multi‑aspect‑ratio creatives, applies legal guardrails, performs compliance checks, produces localized campaign videos with voiceover and background music, and uploads to cloud storage—all within a developer‑friendly, version‑controlled repository.
 
-**Core Value Proposition:** Automate social ad creatives while enforcing brand compliance, legal safety, and full traceability—all within a developer‑friendly, version‑controlled repository.
-
----
-
-## Architecture Decisions (Architect‑Level)
-
-### 1. **Modular, Extensible Design**
-   - **Separation of Concerns:** Image generation, compliance, legal checks, and reporting are isolated into independent Python modules (`brand_compliance.py`, `legal_guardrail.py`, `reporting.py`). This allows teams to update or replace individual components without breaking the entire pipeline.
-   - **Plugin‑Ready:** Each module exposes a simple API (class‑based) that can be called from any orchestrator (OpenClaw, Airflow, Prefect, or a simple script).
-
-### 2. **Brand Compliance via Computer Vision (Not Just Manual Review)**
-   - **Why OpenCV?** Chosen over a full Vision‑LLM for speed, cost, and determinism. Template matching for logo detection and RGB distance for brand‑color verification are sufficient for a POC and can be swapped for a more sophisticated model (e.g., CLIP, GroundingDINO) in production.
-   - **Config‑Driven:** Brand colors, logo path, tolerance thresholds are stored in `configs/brand_config.json`. This allows non‑developers (brand managers) to adjust parameters without touching code.
-   - **Graceful Degradation:** If OpenCV is not installed, compliance checks return a clear warning but do not halt the pipeline—allowing the POC to run in “audit‑only” mode.
-
-### 3. **Legal Guardrails as a Pre‑Flight Check**
-   - **Prohibited‑Word List:** A configurable list of banned terms (e.g., “cheap”, “free”, “winner”) is scanned in campaign messages before they are sent to image‑overlay or TTS.
-   - **Structural Awareness:** The guardrail recursively traverses JSON/YAML campaign structures, checking every string field. This prevents legal pitfalls from nested creative briefs.
-   - **Flag‑and‑Continue:** When a prohibited word is found, the pipeline logs the violation and can either halt or continue with a flagged version (configurable). This aligns with a “fail‑safe but not fail‑stop” philosophy.
-
-### 4. **Reporting Built for Auditability & Analytics**
-   - **Dual Logging:** Every generation is recorded both in a SQLite database (for structured queries) and a JSON log file (for human readability and backup).
-   - **Rich Metadata:** Each log entry includes product name, dimensions, compliance status, generation time, checks passed/failed, and the raw campaign message. This enables:
-     - **Compliance Dashboards:** “What percentage of last week’s assets passed brand‑color checks?”
-     - **Performance Analytics:** “Which product lines have the longest generation times?”
-     - **Legal Audits:** “Show me all creatives that contained the word ‘guarantee’.”
-   - **SQLite Choice:** Lightweight, serverless, and compatible with DB Browser for SQLite—allowing marketing teams to explore logs without SQL knowledge.
-
-### 5. **Repository Structure Optimized for Collaboration**
-   ```
-   skills/comfyui/
-   ├── configs/           # Brand configs, workflow JSONs, prohibited‑word lists
-   ├── src/               # Python source code (generation, compliance, legal, reporting)
-   ├── outputs/           # Generated images, logs, and run reports (git‑ignored)
-   ├── docs/              # This README, architecture diagrams, setup guides
-   └── requirements.txt   # Explicit dependency list for reproducible environments
-   ```
-   - **Clear Separation:** Configs are separate from code, outputs are isolated, documentation lives alongside the implementation.
-   - **Git‑Ready:** `outputs/` is added to `.gitignore` to avoid committing generated assets. Only code, configs, and docs are version‑controlled.
-
-### 6. **Demo‑Ready Video Script Included**
-   - A 3‑minute video script (`docs/demo_script.md`) is provided, optimized for the user’s Voicebox Digital Twin. It walks through local setup, pipeline execution, and review of the output folder—making it easy to record a polished stakeholder demo without extra prep.
-
-### 7. **512×512 Default – Avoiding Common Pitfalls**
-   - The pipeline defaults to **512×512** images (square) to avoid the 1024×1024 and 2048×2048 sizes that the user explicitly prohibited. This is enforced in both the workflow JSON and the Python script’s default arguments.
-
-### 8. **Video Pipeline with Config‑Driven Overlays**
-   - **Text & Logo Overlays:** Campaign messages are automatically overlaid as white 48‑pt text (bottom‑center) with fade‑in/out effects, while the brand logo appears at top‑right with 10% opacity—all configurable in `brand_config.json`.
-   - **Voicebox TTS Integration:** Narration is generated via a local Voicebox server (`http://127.0.0.1:17493`) with silent‑audio fallback, ensuring video always has an audio track.
-   - **FFmpeg Center‑Crop:** Images are intelligently cropped to 16:9 using correct center‑crop mathematics, preserving the most important visual content.
-   - **One‑Click Demo:** `run_video_demo.sh` executes the full video pipeline end‑to‑end, from image generation to final MP4.
-
-### 9. **HeyGen Avatar Integration with Local‑Model Planning**
-   - **API‑First Avatar Generation:** Uses the HeyGen API to produce professional avatar videos from scripts, with support for avatar/voice selection and background customization.
-   - **Local‑Model Cost Avoidance:** All script planning and refinement uses local Ollama models (`mistral‑nemo`, `qwen3‑vl`, `qwen3.5`) to avoid DeepSeek API charges while still leveraging HeyGen’s high‑quality avatar rendering.
-   - **Voicebox Voice Preference:** The integration automatically searches for Voicebox‑compatible voices in HeyGen’s voice library, falling back to the best available English voice.
-   - **Standalone Demo:** `run_heygen_demo.sh` showcases avatar generation with the provided API key, using local models for script processing as requested.
-   - Aspect‑ratio flexibility is retained via command‑line arguments (`--width`, `--height`), but the safe default ensures compliance with the user’s directive.
+**Core Value Proposition:** Automate entire campaign production while enforcing brand compliance, legal safety, multi‑region localization, and full traceability.
 
 ---
 
-## Module Details
+## 🚀 Quick Start
 
-### Brand Compliance (`src/brand_compliance.py`)
-- **Logo Detection:** Uses OpenCV template matching to verify the brand logo appears in the generated image.
-- **Brand‑Color Verification:** Checks that at least one of the defined brand‑color hex values covers >5% of the image pixels (within a configurable tolerance).
-- **Output:** JSON with pass/fail per check, match scores, and color percentages.
+### Clean Install (Recommended)
+```bash
+# 1. Clone repository
+cd ~/A42_Folder
+git clone https://github.com/openclaw-macos/creative-automation-pipeline
+cd creative-automation-pipeline
 
-### Legal Guardrail (`src/legal_guardrail.py`)
-- **Prohibited‑Word Scanning:** Case‑insensitive whole‑word matching against a configurable list.
-- **Structure‑Aware:** Handles plain text, JSON, and YAML campaign messages.
-- **Flagging:** Returns a version of the text with prohibited words wrapped in `[PROHIBITED: …]` markers.
+# 2. Install dependencies
+./src/install_deps.sh
 
-### Reporting (`src/reporting.py`)
-- **SQLite Database:** Table `generation_logs` with columns for all relevant metadata.
-- **JSON Log:** Human‑readable `run_report.json` appended with each generation.
-- **Query API:** Methods to filter logs by product, date, compliance status.
-- **Statistics:** Summary of total generations, pass rates, average generation time.
+# 3. Configure assets (update paths in configs/brand_config.json)
+# Edit logo_path and background_music paths to point to your assets
 
-### Extended Generation Script (`src/comfyui_generate.py`)
-- **Backward Compatible:** All original command‑line arguments still work.
-- **New Flags:**
-  - `--compliance-check` – run brand compliance after generation.
-  - `--legal-check` – scan the prompt/campaign message for prohibited words.
-  - `--brand-config` – path to brand configuration JSON.
-  - `--no-report` – skip database/JSON logging.
-  - `--product` – product name for reporting.
-  - `--campaign-message` – separate campaign text for legal checks.
-  - `--video` – generate video with text/logo overlays and voiceover.
-  - `--video-output-dir` – directory for video outputs.
-  - `--voicebox-url` – Voicebox TTS server URL.
-- **Integrated Logging:** Automatically logs every generation when reporting is enabled.
+# 4. Test complete campaign workflow
+./run_campaign_demo.sh --brief configs/brief.json
+```
 
-### Video Pipeline (`src/video_pipeline.py`)
-- **Text Overlays:** Adds campaign message as white 48‑pt text with semi‑transparent background at bottom‑center position, with configurable fade‑in/out effects.
-- **Logo Overlays:** Places brand logo at top‑right corner with 10% opacity (configurable), automatically resized to 15% of image width.
-- **Voicebox TTS Integration:** Generates voiceover using local Voicebox server with silent‑audio fallback.
-- **FFmpeg Video Assembly:** Creates 16:9 MP4 videos with proper center‑cropping and fade transitions.
-- **Config‑Driven:** All settings (font size, color, position, opacity) read from `brand_config.json`.
-
-### HeyGen Integration (`src/heygen_integration.py`)
-- **Avatar Video Generation:** Uses HeyGen API to create professional avatar videos from scripts.
-- **Local‑Model Planning:** Script refinement and planning uses local Ollama models (`mistral‑nemo`, `qwen3‑vl`, `qwen3.5`) to avoid cloud API charges.
-- **Voicebox Voice Preference:** Automatically searches for Voicebox‑compatible voices in HeyGen’s voice library.
-- **API Key Configuration:** Requires HeyGen API key (provided in demo script).
-- **Polling & Download:** Monitors video generation status and downloads completed videos automatically.
+### Requirements
+- **Python 3.8+** with virtual environment support
+- **ComfyUI** server running on `http://127.0.0.1:8188`
+- **FFmpeg** installed (for video processing)
+- **Google Drive API** credentials (optional, for cloud storage)
+- **HeyGen API key** (optional, for avatar videos)
 
 ---
 
-## Setup Instructions
+## ✨ Key Features
 
-1. **Install Dependencies:**
-   ```bash
-   cd skills/comfyui
-   ./src/install_deps.sh
-   ```
+### 🖼️ **Smart Aspect Ratio Generation**
+- **2 products × 3 aspect ratios = 6 creatives** from 2 base AI-generated images
+- **Intelligent resizing** (center‑crop, letterbox, stretch) – no duplicate AI generation
+- **Standard dimensions:**
+  - **1:1** (1080×1080) – Square (Instagram, Facebook)
+  - **16:9** (1920×1080) – Widescreen (YouTube, video)
+  - **9:16** (1080×1920) – Portrait (Instagram Reels, TikTok)
 
-2. **Configure Brand Settings:**
-   - Edit `configs/brand_config.json` with your logo path, brand colors, and prohibited words.
-   - Place your logo image in `assets/logo.png` (or update the `logo_path`).
+### 🎬 **Campaign Slideshow Videos**
+- **Multi‑product slideshows** – All campaign products in single video
+- **Crossfade transitions** – Professional 1‑second transitions between images
+- **Background music + voiceover** – Mixed audio (voice: 1.0, music: 0.3 volume)
+- **Brand logo overlay** – Transparent logo on all product images (10% opacity)
 
-3. **Start ComfyUI Server:**
-   ```bash
-   cd /path/to/ComfyUI
-   python main.py --port 8188
-   ```
+### 🌍 **Multi‑Region Localization**
+- **6 target regions** with automatic language mapping:
+  - North America (USA/Canada) → English
+  - European Union (Germany/France) → German
+  - Japan → Japanese
+  - UAE / Saudi Arabia → Arabic
+  - Brazil → Portuguese
+  - Scandinavia (Sweden/Denmark) → Swedish
+- **Free translation APIs** – LibreTranslate, Google Translate, MyMemory Translation
+- **Mock translation fallback** – Works offline with pre‑translated phrases
 
-4. **Run Demo Scripts:**
-   - **Basic pipeline (image + compliance + legal + reporting):**
-     ```bash
-     ./run_demo.sh
-     ```
-   - **Video pipeline (adds text/logo overlays + voiceover + MP4):**
-     ```bash
-     ./run_video_demo.sh
-     ```
-   - **HeyGen avatar pipeline (requires API key, uses local models):**
-     ```bash
-     ./run_heygen_demo.sh
-     ```
+### ☁️ **Google Drive Cloud Storage**
+- **Automatic upload** of all generated assets (images, videos, audio, reports)
+- **Service account authentication** – Secure API access without user login
+- **Organized folder structure** – Maintains local folder hierarchy in cloud
+- **Public shareable links** – Automatically generates read‑only links
+- **Local copy preserved** – Never deletes original files
 
-5. **Inspect Logs:**
-   - Open `outputs/pipeline_logs.db` with DB Browser for SQLite.
-   - View `outputs/run_report.json` for a human‑readable log.
+### 🤖 **HeyGen Avatar Integration**
+- **Campaign‑focused avatar videos** – Single video addressing all products
+- **Local‑model script planning** – Uses Ollama models to avoid API costs
+- **Voicebox‑compatible voice search** – Prioritizes matching voices
+- **Background customization** – Professional studio backgrounds
 
----
+### 🛡️ **Brand Compliance & Legal Safety**
+- **Logo detection** – OpenCV template matching verifies brand presence
+- **Color compliance** – Ensures brand colors cover minimum percentage
+- **Prohibited‑word scanning** – Case‑insensitive whole‑word matching
+- **Region‑specific legal checks** – Configurable by target market
 
-## Demo Video Script (3‑Minute Voiceover)
-
-A complete script is available in `docs/demo_script.md`. It guides the viewer through:
-- **Introduction** (30s): The problem of manual creative production and the need for automation.
-- **Local Setup** (60s): Starting ComfyUI, installing dependencies, configuring brand settings.
-- **Pipeline Execution** (60s): Running the extended generation script with compliance checks.
-- **Reviewing Outputs** (30s): Showing the generated image, compliance report, and SQLite logs.
-
-The script is written in a conversational, presenter‑friendly tone optimized for the user’s Voicebox Digital Twin.
-
----
-
-## Next Steps for Production
-
-1. **Replace OpenCV with Vision‑LLM:** Swap template matching for a fine‑tuned CLIP or GroundingDINO model to detect logo variations and brand elements more robustly.
-2. **Add Localization Guardrails:** Extend the legal module to check for region‑specific regulations (e.g., FDA disclaimers for the US, GDPR wording for the EU).
-3. **Integrate with CI/CD:** Automate the pipeline on every Git push—generate previews, run compliance checks, and block merges if any asset fails.
-4. **Cloud Storage:** Replace local `outputs/` with S3/GCS buckets, and log metadata to a cloud‑based data warehouse (BigQuery, Snowflake).
-5. **Dashboard:** Build a Streamlit or Retool dashboard that visualizes compliance rates, generation times, and asset libraries.
+### 📊 **Full Auditability & Reporting**
+- **SQLite database** – Structured logs for analytics
+- **JSON run reports** – Human‑readable execution logs
+- **Generation metadata** – Product, dimensions, compliance status, timing
+- **Query API** – Filter by date, product, region, compliance status
 
 ---
 
-## License & Attribution
+## 📁 Repository Structure
+
+```
+creative-automation-pipeline/
+├── README.md                    # This documentation
+├── requirements.txt             # Python dependencies
+├── configs/
+│   ├── brand_config.json       # Brand colors, logo path, music path
+│   ├── brief.json              # Campaign template (products, region, audience)
+│   ├── assets.json            # Asset path configuration
+│   ├── default_workflow.json   # ComfyUI workflow template
+│   └── sdxl_workflow.json     # SDXL workflow for high‑quality images
+├── src/
+│   ├── comfyui_generate.py    # Main generation script
+│   ├── video_pipeline.py      # Video/slideshow creation
+│   ├── aspect_ratio.py        # Aspect ratio resizing
+│   ├── localization.py        # Translation services
+│   ├── google_drive_integration.py
+│   ├── heygen_integration.py
+│   ├── campaign_manager.py    # Campaign folder organization
+│   ├── brand_compliance.py    # Brand compliance checks
+│   ├── legal_guardrail.py     # Legal word scanning
+│   └── reporting.py           # Audit logging
+├── scripts/ (or root)
+│   ├── run_demo.sh            # Image + compliance + legal + reporting
+│   ├── run_video_demo.sh      # Adds text/logo overlays + voiceover + MP4
+│   ├── run_campaign_demo.sh   # Complete campaign workflow
+│   ├── run_heygen_demo.sh     # HeyGen avatar generation
+│   ├── run_heygen_from_brief.sh # HeyGen from brief.json
+│   ├── run_localization_demo.sh # Localization testing
+│   └── test_*.sh              # Verification scripts
+└── docs/
+    ├── demo_script.md         # 3‑minute video script
+    └── BRAND_GUIDELINES.md    # Brand compliance guidelines
+```
+
+---
+
+## 🛠️ Script Reference
+
+### **run_demo.sh** – Basic Pipeline
+```bash
+# Image generation + compliance + legal + reporting
+./run_demo.sh [--product "Coffee Maker"] [--width 512] [--height 512]
+```
+**What it does:**
+1. Generates product image via ComfyUI
+2. Runs brand compliance checks (logo, colors)
+3. Scans campaign message for prohibited words
+4. Logs generation to SQLite database
+
+### **run_video_demo.sh** – Video Pipeline
+```bash
+# Adds text/logo overlays + voiceover + MP4 creation
+./run_video_demo.sh [--campaign-message "Premium coffee experience"]
+```
+**What it adds:**
+1. Text overlay with campaign message
+2. Brand logo overlay (transparent, top‑right)
+3. Voiceover generation via Voicebox TTS
+4. MP4 video with background music mixing
+
+### **run_campaign_demo.sh** – Complete Campaign
+```bash
+# Full campaign workflow (recommended)
+./run_campaign_demo.sh --brief configs/brief.json [--upload-to-drive]
+```
+**Complete workflow:**
+1. Reads `brief.json` (products, target_region, audience)
+2. Generates base images for all products
+3. Creates 3 aspect ratios for each product (resizing, not regenerating)
+4. Adds brand logo overlay to all images
+5. Generates voiceover from `campaign_video_message`
+6. Creates slideshow video with all product images
+7. Mixes voiceover with background music
+8. (Optional) Uploads all assets to Google Drive
+
+### **run_heygen_demo.sh** – Avatar Videos
+```bash
+# HeyGen avatar generation
+./run_heygen_demo.sh --api-key YOUR_KEY --script "Campaign message"
+```
+**Features:**
+- Uses local Ollama models for script planning
+- Searches for Voicebox‑compatible voices
+- Generates professional avatar video
+- Addresses all campaign products in single video
+
+### **run_localization_demo.sh** – Localization Testing
+```bash
+# Test all 6 region localizations
+./run_localization_demo.sh
+```
+
+### **run_heygen_from_brief.sh** – HeyGen from Brief
+```bash
+# Generate HeyGen video from brief.json
+./run_heygen_from_brief.sh --brief configs/brief.json
+```
+
+---
+
+## 🔧 Configuration
+
+### **brand_config.json**
+```json
+{
+  "brand_name": "NexaGoods",
+  "tagline": "Premium Essentials for Modern Living",
+  "logo_path": "/Users/youee-mac/A42_Folder/creative-automation-pipeline/assets/nexagoods_logo.png",
+  "video_settings": {
+    "background_music": "/Users/youee-mac/A42_Folder/creative-automation-pipeline/assets/background_music.mp3"
+  }
+}
+```
+
+### **brief.json** – Campaign Template
+```json
+{
+  "product_type": "Smart Kitchen Essentials",
+  "products": [
+    {"name": "Coffee Maker", "description": "Smart pour‑over coffee maker"},
+    {"name": "Blender", "description": "High‑speed professional blender"}
+  ],
+  "target_region": "North America (USA/Canada)",
+  "audience": "Urban professionals aged 25‑45",
+  "campaign_video_message": "Introducing our premium kitchen essentials..."
+}
+```
+
+### **assets.json** – Asset Configuration
+```json
+{
+  "nexagoods_logo": "/Users/youee-mac/A42_Folder/creative-automation-pipeline/assets/nexagoods_logo.png",
+  "background_music": "/Users/youee-mac/A42_Folder/creative-automation-pipeline/assets/background_music.mp3",
+  "asset_root": "/Users/youee-mac/A42_Folder/creative-automation-pipeline/assets"
+}
+```
+
+---
+
+## 📈 Output Structure
+
+### **Campaign Outputs**
+```
+outputs/campaign/
+├── images/
+│   ├── base/                     # 2 base AI-generated images
+│   ├── aspect_ratios/            # 6 resized images (2 × 3)
+│   └── with_logo/                # All 6 images with brand logo
+├── video/
+│   └── campaign_slideshow.mp4    # Slideshow with both products
+├── audio/
+│   └── campaign_voiceover.mp3    # Voiceover mixed with background music
+└── campaign_metadata.json        # Generation logs and compliance reports
+```
+
+### **Individual Product Outputs**
+```
+outputs/
+├── Coffee_Maker_512x512.png
+├── Coffee_Maker_text_overlay.png
+├── Coffee_Maker_final.png
+├── Coffee_Maker_voiceover.mp3
+├── Coffee_Maker_video.mp4
+├── pipeline_logs.db
+└── run_report.json
+```
+
+---
+
+## 🧪 Testing Suite
+
+### **Complete Verification**
+```bash
+# Test all features
+./test_campaign_fix.sh
+
+# Test localization
+./test_localization_complete.sh
+
+# Test Google Drive integration
+./test_google_drive.sh
+
+# Test translation updates
+./test_translation_update.sh
+```
+
+### **Expected Test Results**
+- ✅ 2 base product images generated
+- ✅ 6 aspect ratio images created (resizing, not regenerating)
+- ✅ Brand logo overlay on all images (10% opacity, top‑right)
+- ✅ Campaign slideshow video with crossfade transitions
+- ✅ Voiceover mixed with background music
+- ✅ Localization for 6 target regions
+- ✅ Google Drive upload (if configured)
+- ✅ HeyGen avatar video addressing all products
+
+---
+
+## 🐛 Troubleshooting
+
+### **Common Issues**
+
+#### **1. Missing Assets (logo.png, background_music.mp3)**
+**Solution:** Update paths in `configs/brand_config.json`:
+```json
+"logo_path": "/absolute/path/to/your/logo.png",
+"background_music": "/absolute/path/to/your/background_music.mp3"
+```
+
+#### **2. ComfyUI Connection Failed**
+**Solution:** Ensure ComfyUI server is running:
+```bash
+cd /path/to/ComfyUI
+python main.py --port 8188
+```
+
+#### **3. FFmpeg Not Found**
+**Solution:** Install FFmpeg:
+```bash
+# macOS
+brew install ffmpeg
+
+# Ubuntu/Debian
+sudo apt install ffmpeg
+```
+
+#### **4. Python Module Errors**
+**Solution:** Reinstall dependencies:
+```bash
+./src/install_deps.sh
+```
+
+#### **5. Google Drive Authentication Failed**
+**Solution:** Verify service account JSON file exists and has Drive API permissions:
+```bash
+ls -la /Users/youee-mac/A42_Folder/google_serviceaccount/
+```
+
+#### **6. HeyGen API Key Invalid**
+**Solution:** Update API key in script or environment variable:
+```bash
+export HEYGEN_API_KEY="sk_V2_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+### **Debug Mode**
+```bash
+# Enable verbose output
+./run_campaign_demo.sh --brief configs/brief.json --verbose
+
+# Test individual components
+python3 src/aspect_ratio.py --help
+python3 src/video_pipeline.py --help
+```
+
+---
+
+## 🔄 Development & Extension
+
+### **Adding New Features**
+1. **New aspect ratio:** Update `src/aspect_ratio.py` → `ASPECT_RATIOS` dictionary
+2. **New region:** Update `src/localization.py` → `REGION_LANGUAGE_MAP`
+3. **New compliance check:** Add method to `src/brand_compliance.py`
+4. **New video effect:** Extend `src/video_pipeline.py` → `_get_video_filter()`
+
+### **Production Considerations**
+- **Replace OpenCV with Vision‑LLM** for better logo detection
+- **Add CDN integration** for asset delivery
+- **Implement queue system** for high‑volume generation
+- **Add monitoring dashboard** with real‑time metrics
+- **Integrate with marketing platforms** (Facebook Ads, Google Ads API)
+
+### **Performance Optimization**
+- **Parallel generation** for multiple products
+- **Cache translated phrases** to reduce API calls
+- **Batch uploads** to Google Drive
+- **Preview generation** with lower resolution
+
+---
+
+## 📄 License & Attribution
+
 - **ComfyUI:** [https://github.com/comfyanonymous/ComfyUI](https://github.com/comfyanonymous/ComfyUI)
 - **OpenCV:** [https://opencv.org/](https://opencv.org/)
 - **Voicebox:** [https://github.com/facebookresearch/voicebox](https://github.com/facebookresearch/voicebox)
+- **FFmpeg:** [https://ffmpeg.org/](https://ffmpeg.org/)
 
-This POC is built for internal demonstration purposes. Extend and customize as needed for your organization.
+Built for internal demonstration and production‑ready campaign automation.
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
+
+### **Code Standards**
+- Follow PEP 8 for Python code
+- Add docstrings to all public methods
+- Include unit tests for new features
+- Update documentation (README.md) accordingly
+
+---
+
+**Last Updated:** March 2026  
+**Version:** 2.0 – Complete Campaign Automation

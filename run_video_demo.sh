@@ -9,7 +9,48 @@ SRC_DIR="$SCRIPT_DIR/src"
 OUTPUTS_DIR="$SCRIPT_DIR/outputs"
 WORKFLOW="$SCRIPT_DIR/configs/default_workflow.json"
 
+# Default target region
+TARGET_REGION="USA"
+UPLOAD_TO_DRIVE=false
+DRIVE_SERVICE_ACCOUNT="/Users/youee-mac/A42_Folder/google_serviceaccount/service_account.json"
+DRIVE_FOLDER_ID="1XdhY-6U624J_ml-MulmMfhQ5zrn9ja1H"
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --target-region)
+            TARGET_REGION="$2"
+            shift 2
+            ;;
+        --upload-to-drive)
+            UPLOAD_TO_DRIVE=true
+            shift
+            ;;
+        --drive-service-account)
+            DRIVE_SERVICE_ACCOUNT="$2"
+            shift 2
+            ;;
+        --drive-folder-id)
+            DRIVE_FOLDER_ID="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--target-region REGION] [--upload-to-drive] [--drive-service-account PATH] [--drive-folder-id ID]"
+            exit 1
+            ;;
+    esac
+done
+
 echo "=== Creative Automation Pipeline with Video Demo ==="
+echo "Target Region: $TARGET_REGION"
+if [ "$UPLOAD_TO_DRIVE" = true ]; then
+    echo "Google Drive Upload: ENABLED"
+    echo "  Service Account: $DRIVE_SERVICE_ACCOUNT"
+    echo "  Folder ID: $DRIVE_FOLDER_ID"
+else
+    echo "Google Drive Upload: DISABLED (use --upload-to-drive to enable)"
+fi
 echo ""
 
 # Create outputs directory
@@ -50,17 +91,31 @@ else
     PYTHON_EXEC="python3"
 fi
 
-$PYTHON_EXEC "$SRC_DIR/comfyui_generate.py" \
-    --prompt "a sleek coffee maker on a modern kitchen counter" \
-    --output "$OUTPUTS_DIR/images/coffee_maker.png" \
-    --workflow "$WORKFLOW" \
-    --product "Coffee Maker" \
-    --campaign-message "Start your day smarter with our premium coffee maker" \
-    --compliance-check \
-    --legal-check \
-    --video \
-    --video-output-dir "$OUTPUTS_DIR" \
-    --seed 42
+# Build command arguments
+CMD_ARGS=(
+    "--prompt" "a sleek coffee maker on a modern kitchen counter"
+    "--output" "$OUTPUTS_DIR/images/coffee_maker.png"
+    "--workflow" "$WORKFLOW"
+    "--product" "Coffee Maker"
+    "--campaign-message" "Start your day smarter with our premium coffee maker"
+    "--target-region" "$TARGET_REGION"
+    "--compliance-check"
+    "--legal-check"
+    "--video"
+    "--video-output-dir" "$OUTPUTS_DIR"
+    "--seed" "42"
+)
+
+# Add Google Drive arguments if enabled
+if [ "$UPLOAD_TO_DRIVE" = true ]; then
+    CMD_ARGS+=("--upload-to-drive")
+    CMD_ARGS+=("--drive-service-account" "$DRIVE_SERVICE_ACCOUNT")
+    CMD_ARGS+=("--drive-folder-id" "$DRIVE_FOLDER_ID")
+    CMD_ARGS+=("--keep-local")
+fi
+
+# Run the command
+$PYTHON_EXEC "$SRC_DIR/comfyui_generate.py" "${CMD_ARGS[@]}"
 
 echo ""
 echo "========================================="

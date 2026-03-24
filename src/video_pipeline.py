@@ -22,14 +22,49 @@ except ImportError:
     OPENCV_AVAILABLE = False
     print("WARNING: OpenCV not available. Using PIL fallback for video processing.")
 
+# Import localization module
+try:
+    from .localization import Localization
+    LOCALIZATION_AVAILABLE = True
+except ImportError:
+    try:
+        from localization import Localization
+        LOCALIZATION_AVAILABLE = True
+    except ImportError:
+        LOCALIZATION_AVAILABLE = False
+        print("WARNING: Localization module not available. Using English-only fallback.")
+
 class VideoPipeline:
-    def __init__(self, brand_config_path: str = "../configs/brand_config.json"):
+    def __init__(self, brand_config_path: str = "../configs/brand_config.json", 
+                 target_region: str = "USA", language_code: str = None):
         """
-        Initialize video pipeline with brand configuration.
+        Initialize video pipeline with brand configuration and localization.
+        
+        Args:
+            brand_config_path: Path to brand configuration JSON
+            target_region: Target region for localization (e.g., "USA", "Japan")
+            language_code: ISO 639-1 language code (e.g., "en", "ja"). 
+                          If None, auto-detected from target_region.
         """
         self.brand_config_path = brand_config_path
         with open(brand_config_path, 'r', encoding='utf-8') as f:
             self.config = json.load(f)
+        
+        self.target_region = target_region
+        
+        # Initialize localization
+        self.localization = None
+        if LOCALIZATION_AVAILABLE:
+            self.localization = Localization(use_mock=True)  # Use mock for POC
+            if language_code is None:
+                self.language_code = self.localization.get_language_code(target_region)
+            else:
+                self.language_code = language_code
+            self.voice_code = self.localization.get_voice_code(self.language_code)
+        else:
+            self.language_code = "en"
+            self.voice_code = "en-US"
+            print("WARNING: Localization not available, using English defaults")
         
         self.logo_path = self.config.get("logo_path", "")
         self.text_settings = self.config.get("text_overlay_settings", {})
@@ -49,12 +84,32 @@ class VideoPipeline:
         
         self.fps = self.video_settings.get("fps", 30)
         self.resolution = self.video_settings.get("resolution", "1920x1080")
+        self.background_music = self.video_settings.get("background_music", "")
         
         # Parse resolution
         if "x" in self.resolution:
             self.video_width, self.video_height = map(int, self.resolution.split("x"))
         else:
             self.video_width, self.video_height = 1920, 1080
+    
+    def localize_text(self, text: str, source_lang: str = "auto") -> str:
+        """
+        Localize text based on pipeline's target region and language.
+        
+        Args:
+            text: Text to localize
+            source_lang: Source language code (default: auto-detect)
+            
+        Returns:
+            Localized text
+        """
+        if self.localization is None or self.language_code == "en":
+            # No localization available or already English
+            return text
+        
+        # Translate text to target language
+        localized = self.localization.translate_text(text, source_lang, self.language_code)
+        return localized
     
     def add_text_overlay(self, image_path: str, text: str, output_path: str) -> str:
         """
@@ -209,24 +264,35 @@ class VideoPipeline:
             return output_path
     
     def generate_voiceover(self, text: str, output_path: str, 
-                          voicebox_url: str = "http://127.0.0.1:17493") -> Optional[str]:
+                          voicebox_url: str = "http://127.0.0.1:17493",
+                          language: str = None) -> Optional[str]:
         """
-        Generate voiceover using Voicebox TTS.
+        Generate voiceover using Voicebox TTS with language support.
         Returns path to audio file if successful.
+        
+        Args:
+            text: Text to convert to speech
+            output_path: Path to save audio file
+            voicebox_url: Voicebox TTS server URL
+            language: Language code (e.g., "en", "ja"). If None, uses pipeline's language_code
         """
+        if language is None:
+            language = self.language_code
+        
         try:
             # Voicebox API endpoint
             api_url = f"{voicebox_url}/api/tts"
             
-            # Prepare request
+            # Prepare request with language
             payload = {
                 "text": text,
                 "speaker_id": "default",  # Use default voice
-                "language": "en",
+                "language": language,
                 "speed": 1.0
             }
             
             print(f"Generating voiceover with Voicebox at {voicebox_url}...")
+            print(f"  Language: {language}, Text length: {len(text)} chars")
             response = requests.post(api_url, json=payload, timeout=30)
             
             if response.status_code == 200:
@@ -261,6 +327,19 @@ class VideoPipeline:
             if audio_duration > 0:
                 duration_seconds = max(audio_duration, 5)  # Minimum 5 seconds
             
+            # Mix voiceover with background music if available
+            mixed_audio_path = None
+            if self.background_music and os.path.exists(self.background_music):
+                # Create temporary file for mixed audio
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp:
+                    mixed_audio_path = tmp.name
+                
+                mixed_audio_path = self._mix_audio_with_background(audio_path, mixed_audio_path)
+                audio_to_use = mixed_audio_path
+            else:
+                audio_to_use = audio_path
+            
             # FFmpeg command to create video with fade effects
             # Center crop if image is not 16:9
             cmd = [
@@ -268,7 +347,7 @@ class VideoPipeline:
                 "-y",  # Overwrite output
                 "-loop", "1",
                 "-i", image_path,
-                "-i", audio_path,
+                "-i", audio_to_use,
                 "-vf", self._get_video_filter(duration_seconds),
                 "-t", str(duration_seconds),
                 "-c:v", "libx264",
@@ -284,14 +363,23 @@ class VideoPipeline:
             
             if result.returncode == 0:
                 print(f"✅ Video created: {output_path}")
+                # Clean up temporary mixed audio file if created
+                if mixed_audio_path and mixed_audio_path != audio_path and os.path.exists(mixed_audio_path):
+                    os.unlink(mixed_audio_path)
                 return output_path
             else:
                 print(f"⚠️  FFmpeg error: {result.stderr}")
+                # Clean up temporary mixed audio file if created
+                if mixed_audio_path and mixed_audio_path != audio_path and os.path.exists(mixed_audio_path):
+                    os.unlink(mixed_audio_path)
                 # Try simpler command
                 return self._create_simple_video(image_path, audio_path, output_path, duration_seconds)
                 
         except Exception as e:
             print(f"ERROR in create_video: {e}")
+            # Clean up temporary mixed audio file if created
+            if 'mixed_audio_path' in locals() and mixed_audio_path and mixed_audio_path != audio_path and os.path.exists(mixed_audio_path):
+                os.unlink(mixed_audio_path)
             # Try fallback
             return self._create_simple_video(image_path, audio_path, output_path, duration_seconds)
     
@@ -369,6 +457,175 @@ class VideoPipeline:
             return float(result.stdout.strip()) if result.returncode == 0 else 0
         except:
             return 0
+    
+    def _mix_audio_with_background(self, voiceover_path: str, output_path: str) -> str:
+        """
+        Mix voiceover audio with background music.
+        Returns path to mixed audio file.
+        """
+        if not self.background_music or not os.path.exists(self.background_music):
+            # No background music, just use voiceover
+            if voiceover_path != output_path:
+                import shutil
+                shutil.copy2(voiceover_path, output_path)
+            return output_path
+        
+        try:
+            # Mix voiceover (volume=1.0) with background music (volume=0.3)
+            cmd = [
+                "ffmpeg",
+                "-y",
+                "-i", voiceover_path,
+                "-i", self.background_music,
+                "-filter_complex", "[0:a]volume=1.0[voice];[1:a]volume=0.3[bg];[voice][bg]amix=inputs=2:duration=longest",
+                "-c:a", "libmp3lame",
+                "-q:a", "2",
+                output_path
+            ]
+            
+            print(f"Mixing voiceover with background music: {self.background_music}")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"✅ Audio mixed with background music: {output_path}")
+                return output_path
+            else:
+                print(f"⚠️  Audio mixing failed: {result.stderr}")
+                # Fallback to voiceover only
+                if voiceover_path != output_path:
+                    import shutil
+                    shutil.copy2(voiceover_path, output_path)
+                return output_path
+                
+        except Exception as e:
+            print(f"ERROR in audio mixing: {e}")
+            # Fallback to voiceover only
+            if voiceover_path != output_path:
+                import shutil
+                shutil.copy2(voiceover_path, output_path)
+            return output_path
+    
+    def create_slideshow(self, image_paths: List[str], audio_path: str, output_path: str,
+                        duration_per_image: int = 5, transition_duration: float = 1.0) -> str:
+        """
+        Create slideshow video from multiple images.
+        
+        Args:
+            image_paths: List of image file paths
+            audio_path: Audio file path
+            output_path: Output video path
+            duration_per_image: Seconds to display each image
+            transition_duration: Crossfade duration between images
+            
+        Returns:
+            Path to created video
+        """
+        try:
+            if not image_paths:
+                raise ValueError("No images provided for slideshow")
+            
+            # Ensure output directory exists
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            
+            # Get audio duration
+            audio_duration = self._get_audio_duration(audio_path)
+            total_duration = len(image_paths) * duration_per_image
+            
+            # Adjust duration to match audio if audio is longer
+            if audio_duration > 0 and audio_duration > total_duration:
+                duration_per_image = audio_duration / len(image_paths)
+                total_duration = audio_duration
+            
+            print(f"Creating slideshow with {len(image_paths)} images")
+            print(f"  Duration per image: {duration_per_image}s")
+            print(f"  Total duration: {total_duration}s")
+            print(f"  Audio duration: {audio_duration}s")
+            
+            # Mix voiceover with background music if available
+            mixed_audio_path = None
+            if self.background_music and os.path.exists(self.background_music):
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp:
+                    mixed_audio_path = tmp.name
+                
+                mixed_audio_path = self._mix_audio_with_background(audio_path, mixed_audio_path)
+                audio_to_use = mixed_audio_path
+            else:
+                audio_to_use = audio_path
+            
+            # Create FFmpeg filter for slideshow with crossfade
+            filter_complex = []
+            
+            # Input images
+            for i, img_path in enumerate(image_paths):
+                filter_complex.append(f"[{i}:v]scale={self.video_width}:{self.video_height}:force_original_aspect_ratio=increase,crop={self.video_width}:{self.video_height},setpts=PTS-STARTPTS[v{i}];")
+            
+            # Create crossfade transitions
+            for i in range(len(image_paths) - 1):
+                if i == 0:
+                    filter_complex.append(f"[v0][v1]blend=all_expr='A*(1-min(1,T/{transition_duration}))+B*min(1,T/{transition_duration})'[b1];")
+                else:
+                    filter_complex.append(f"[b{i}][v{i+1}]blend=all_expr='A*(1-min(1,T/{transition_duration}))+B*min(1,T/{transition_duration})'[b{i+1}];")
+            
+            # Final output
+            if len(image_paths) > 1:
+                final_output = f"[b{len(image_paths)-1}]"
+            else:
+                final_output = "[v0]"
+            
+            # Add fade in/out
+            filter_complex.append(f"{final_output}fade=t=in:st=0:d={self.fade_in_ms/1000},fade=t=out:st={total_duration - self.fade_out_ms/1000}:d={self.fade_out_ms/1000}[vout]")
+            
+            filter_str = "".join(filter_complex)
+            
+            # Build FFmpeg command
+            cmd = ["ffmpeg", "-y"]
+            
+            # Add image inputs
+            for img_path in image_paths:
+                cmd.extend(["-loop", "1", "-t", str(duration_per_image), "-i", img_path])
+            
+            # Add audio input
+            cmd.extend(["-i", audio_to_use])
+            
+            # Add filter complex and output
+            cmd.extend([
+                "-filter_complex", filter_str,
+                "-map", "[vout]",
+                "-map", f"{len(image_paths)}:a",
+                "-t", str(total_duration),
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-shortest",
+                output_path
+            ])
+            
+            print(f"Creating slideshow with FFmpeg...")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            # Clean up temporary mixed audio file if created
+            if mixed_audio_path and mixed_audio_path != audio_path and os.path.exists(mixed_audio_path):
+                os.unlink(mixed_audio_path)
+            
+            if result.returncode == 0:
+                print(f"✅ Slideshow video created: {output_path}")
+                return output_path
+            else:
+                print(f"⚠️  FFmpeg error: {result.stderr}")
+                # Fallback to simple video with first image
+                return self._create_simple_video(image_paths[0], audio_path, output_path, total_duration)
+                
+        except Exception as e:
+            print(f"ERROR in create_slideshow: {e}")
+            # Clean up temporary mixed audio file if created
+            if 'mixed_audio_path' in locals() and mixed_audio_path and mixed_audio_path != audio_path and os.path.exists(mixed_audio_path):
+                os.unlink(mixed_audio_path)
+            # Fallback to simple video with first image
+            if image_paths:
+                return self._create_simple_video(image_paths[0], audio_path, output_path, 10)
+            return ""
     
     def _create_simple_video(self, image_path: str, audio_path: str, 
                            output_path: str, duration: int) -> str:
