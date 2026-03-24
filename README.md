@@ -43,19 +43,19 @@ cd creative-automation-pipeline
 - **ComfyUI installation (without models):** ~2 GB.
 - **Stable Diffusion checkpoints:** 4–10 GB depending on model selection (SD1.5 ~4 GB, SDXL ~6 GB, additional LoRAs/VAEs extra).
 - **FFmpeg:** ~100 MB.
-- **Voicebox TTS models (if used):** varies (can be several GB).
-- **Total estimated disk space:** 6–15 GB (depending on models and optional components).
+- **Voicebox TTS models (if used):** Small/Fast Models: ~1.5 GB to 3 GB (Good for quick testing); High-Fidelity/Pro Models (XTTSv2/Voicebox-style): 6 GB to 15 GB. This is what you need for realistic brand voiceovers.
+- **Total estimated disk space:** 6–30 GB (depending on models and optional components).
 
 **Installation Time (assuming standard US internet speeds)**
 - **Python packages:** 5–10 minutes.
 - **ComfyUI setup (clone, install, download models):** 30–60 minutes (most time spent downloading models).
 - **FFmpeg:** 1–2 minutes.
-- **Voicebox TTS setup:** optional, additional 10–30 minutes.
-- **Total setup time:** 45–90 minutes for a fully functional pipeline.
+- **Voicebox TTS setup:** optional, additional 10–60 minutes (depending on model size).
+- **Total setup time:** 45–150 minutes for a fully functional pipeline (including optional components).
 
 **Hardware Requirements**
-- **Minimum:** 8 GB system RAM, 4 GB VRAM (GPU), 20 GB free disk space
-- **Recommended:** 16 GB system RAM, 8 GB VRAM (NVIDIA GPU with CUDA support), 30 GB free disk space
+- **Minimum:** 8 GB system RAM, 4 GB VRAM (GPU), 25 GB free disk space
+- **Recommended:** 16 GB system RAM, 8 GB VRAM (NVIDIA GPU with CUDA support), 40 GB free disk space
 - **GPU:** NVIDIA GPU recommended for ComfyUI acceleration (AMD/Intel iGPUs may work but slower)
 - **Operating System:** macOS 10.15+, Ubuntu 20.04+, Windows 10/11 (WSL2 recommended for Windows)
 
