@@ -55,9 +55,9 @@ class GoogleDriveIntegration:
         # Default service account path if not provided
         if not self.service_account_file:
             default_paths = [
-                "/Users/youee-mac/A42_Folder/google_serviceaccount/service_account.json",
-                "/Users/youee-mac/A42_Folder/google_serviceaccount/credentials.json",
-                "/Users/youee-mac/A42_Folder/google_serviceaccount/google_service_account.json",
+                "/Users/youee-mac/IFN_Corp/google_serviceaccount/service_account.json",
+                "/Users/youee-mac/IFN_Corp/google_serviceaccount/credentials.json",
+                "/Users/youee-mac/IFN_Corp/google_serviceaccount/google_service_account.json",
             ]
             for path in default_paths:
                 if os.path.exists(path):

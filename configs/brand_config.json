@@ -1,7 +1,7 @@
 {
   "brand_name": "NexaGoods",
   "tagline": "Premium Essentials for Modern Living",
-  "logo_path": "/Users/youee-mac/A42_Folder/creative-automation-pipeline/assets/nexagoods_logo.png",
+  "logo_path": "/Users/youee-mac/IFN_Corp/creative-automation-pipeline/assets/nexagoods_logo.png",
   
   "brand_colors": {
     "primary": "#827a78",
@@ -62,7 +62,7 @@
   },
   
   "video_settings": {
-    "background_music": "/Users/youee-mac/A42_Folder/creative-automation-pipeline/assets/background_music.mp3",
+    "background_music": "/Users/youee-mac/IFN_Corp/creative-automation-pipeline/assets/background_music.mp3",
     "default_silent": true,
     "fps": 30,
     "resolution": "1920x1080"

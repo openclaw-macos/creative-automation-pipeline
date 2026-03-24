@@ -10,7 +10,7 @@ echo "=== Testing Google Drive Integration ==="
 echo ""
 
 # Check if service account file exists
-SERVICE_ACCOUNT="/Users/youee-mac/A42_Folder/google_serviceaccount/service_account.json"
+SERVICE_ACCOUNT="/Users/youee-mac/IFN_Corp/google_serviceaccount/service_account.json"
 if [ -f "$SERVICE_ACCOUNT" ]; then
     echo "✅ Service account file found: $SERVICE_ACCOUNT"
     echo "   File size: $(wc -c < "$SERVICE_ACCOUNT") bytes"

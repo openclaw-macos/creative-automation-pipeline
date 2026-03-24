@@ -71,7 +71,7 @@ DEFAULT_WORKFLOW = os.path.join(SCRIPT_DIR, "../configs/default_workflow.json")
 DEFAULT_BRAND_CONFIG = os.path.join(SCRIPT_DIR, "../configs/brand_config.json")
 DEFAULT_DB_PATH = os.path.join(SCRIPT_DIR, "../outputs/pipeline_logs.db")
 DEFAULT_JSON_REPORT = os.path.join(SCRIPT_DIR, "../outputs/run_report.json")
-DEFAULT_SERVICE_ACCOUNT = "/Users/youee-mac/A42_Folder/google_serviceaccount/service_account.json"
+DEFAULT_SERVICE_ACCOUNT = "/Users/youee-mac/IFN_Corp/google_serviceaccount/service_account.json"
 DEFAULT_DRIVE_FOLDER_ID = "1XdhY-6U624J_ml-MulmMfhQ5zrn9ja1H"  # creative-automation-pipeline folder
 
 def load_workflow(path: str) -> Dict[str, Any]:

@@ -16,7 +16,7 @@ BRIEF_FILE="$SCRIPT_DIR/configs/brief.json"
 TARGET_REGION="USA"
 UPLOAD_TO_DRIVE=false
 VERBOSE=false
-DRIVE_SERVICE_ACCOUNT="/Users/youee-mac/A42_Folder/google_serviceaccount/service_account.json"
+DRIVE_SERVICE_ACCOUNT="/Users/youee-mac/IFN_Corp/google_serviceaccount/service_account.json"
 DRIVE_FOLDER_ID="1XdhY-6U624J_ml-MulmMfhQ5zrn9ja1H"
 
 # Parse command line arguments

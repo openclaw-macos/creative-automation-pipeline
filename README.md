@@ -12,7 +12,7 @@ A complete end‑to‑end creative automation pipeline for global consumer goods
 ### Clean Install (Recommended)
 ```bash
 # 1. Clone repository
-cd ~/A42_Folder
+cd ~/IFN_Corp
 git clone https://github.com/openclaw-macos/creative-automation-pipeline
 cd creative-automation-pipeline
 
@@ -206,9 +206,9 @@ creative-automation-pipeline/
 {
   "brand_name": "NexaGoods",
   "tagline": "Premium Essentials for Modern Living",
-  "logo_path": "/Users/youee-mac/A42_Folder/creative-automation-pipeline/assets/nexagoods_logo.png",
+  "logo_path": "/Users/youee-mac/IFN_Corp/creative-automation-pipeline/assets/nexagoods_logo.png",
   "video_settings": {
-    "background_music": "/Users/youee-mac/A42_Folder/creative-automation-pipeline/assets/background_music.mp3"
+    "background_music": "/Users/youee-mac/IFN_Corp/creative-automation-pipeline/assets/background_music.mp3"
   }
 }
 ```
@@ -230,9 +230,9 @@ creative-automation-pipeline/
 ### **assets.json** – Asset Configuration
 ```json
 {
-  "nexagoods_logo": "/Users/youee-mac/A42_Folder/creative-automation-pipeline/assets/nexagoods_logo.png",
-  "background_music": "/Users/youee-mac/A42_Folder/creative-automation-pipeline/assets/background_music.mp3",
-  "asset_root": "/Users/youee-mac/A42_Folder/creative-automation-pipeline/assets"
+  "nexagoods_logo": "/Users/youee-mac/IFN_Corp/creative-automation-pipeline/assets/nexagoods_logo.png",
+  "background_music": "/Users/youee-mac/IFN_Corp/creative-automation-pipeline/assets/background_music.mp3",
+  "asset_root": "/Users/youee-mac/IFN_Corp/creative-automation-pipeline/assets"
 }
 ```
 
@@ -334,7 +334,7 @@ sudo apt install ffmpeg
 #### **5. Google Drive Authentication Failed**
 **Solution:** Verify service account JSON file exists and has Drive API permissions:
 ```bash
-ls -la /Users/youee-mac/A42_Folder/google_serviceaccount/
+ls -la /Users/youee-mac/IFN_Corp/google_serviceaccount/
 ```
 
 #### **6. HeyGen API Key Invalid**
