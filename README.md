@@ -12,7 +12,7 @@ A complete end‑to‑end creative automation pipeline for global consumer goods
 ### Clean Install (Recommended)
 ```bash
 # 1. Clone repository
-cd ~/IFN_Corp
+cd ~/projects
 git clone https://github.com/openclaw-macos/creative-automation-pipeline
 cd creative-automation-pipeline
 
@@ -27,11 +27,103 @@ cd creative-automation-pipeline
 ```
 
 ### Requirements
-- **Python 3.8+** with virtual environment support
-- **ComfyUI** server running on `http://127.0.0.1:8188`
-- **FFmpeg** installed (for video processing)
-- **Google Drive API** credentials (optional, for cloud storage)
-- **HeyGen API key** (optional, for avatar videos)
+
+**Core Dependencies:**
+- **Python 3.8+** with virtual environment support – install via [python.org](https://www.python.org/downloads/) or your system package manager.
+- **ComfyUI** server running on `http://127.0.0.1:8188` – follow the [ComfyUI installation guide](https://github.com/comfyanonymous/ComfyUI) to set up locally. You'll need at least one Stable Diffusion checkpoint (e.g., SD1.5, SDXL) placed in `ComfyUI/models/checkpoints/`.
+- **FFmpeg** installed (for video processing) – on macOS: `brew install ffmpeg`; on Ubuntu/Debian: `sudo apt install ffmpeg`.
+- **Voicebox TTS** (optional) – a local TTS server for voiceover generation. The pipeline expects a Voicebox server at `http://127.0.0.1:17493`. You can use other TTS services by modifying `src/video_pipeline.py`.
+
+**Optional Cloud Services:**
+- **Google Drive API** credentials (optional, for cloud storage) – create a service account and download the JSON key. Place it at `~/google_serviceaccount/service_account.json` or update the path in `src/comfyui_generate.py`.
+- **HeyGen API key** (optional, for avatar videos) – sign up at [HeyGen](https://www.heygen.com/) and obtain an API key.
+
+**Storage Requirements**
+- **Python virtual environment & packages:** ~500 MB.
+- **ComfyUI installation (without models):** ~2 GB.
+- **Stable Diffusion checkpoints:** 4–10 GB depending on model selection (SD1.5 ~4 GB, SDXL ~6 GB, additional LoRAs/VAEs extra).
+- **FFmpeg:** ~100 MB.
+- **Voicebox TTS models (if used):** varies (can be several GB).
+- **Total estimated disk space:** 6–15 GB (depending on models and optional components).
+
+**Installation Time (assuming standard US internet speeds)**
+- **Python packages:** 5–10 minutes.
+- **ComfyUI setup (clone, install, download models):** 30–60 minutes (most time spent downloading models).
+- **FFmpeg:** 1–2 minutes.
+- **Voicebox TTS setup:** optional, additional 10–30 minutes.
+- **Total setup time:** 45–90 minutes for a fully functional pipeline.
+
+**Hardware Requirements**
+- **Minimum:** 8 GB system RAM, 4 GB VRAM (GPU), 20 GB free disk space
+- **Recommended:** 16 GB system RAM, 8 GB VRAM (NVIDIA GPU with CUDA support), 30 GB free disk space
+- **GPU:** NVIDIA GPU recommended for ComfyUI acceleration (AMD/Intel iGPUs may work but slower)
+- **Operating System:** macOS 10.15+, Ubuntu 20.04+, Windows 10/11 (WSL2 recommended for Windows)
+
+**Network & Port Requirements**
+- **Open ports:** 8188 (ComfyUI), 17493 (Voicebox TTS – optional)
+- **Internet access required** for initial setup (Python packages, model downloads, translation APIs)
+- **Firewall configuration:** Ensure localhost traffic is allowed on the above ports
+- **Proxy/ VPN considerations:** If behind corporate firewall, configure proxy settings for Python/curl
+
+**Verification Checklist (Run Before First Use)**
+Before running any campaign, verify each component works:
+
+1. **Python environment:**
+   ```bash
+   python3 --version  # Should show 3.8+
+   pip3 list | grep -E "(requests|opencv|Pillow)"  # Core packages installed
+   ```
+
+2. **ComfyUI server:**
+   ```bash
+   curl -s http://127.0.0.1:8188  # Should return HTML
+   # Or visit http://127.0.0.1:8188 in browser
+   ```
+
+3. **FFmpeg installation:**
+   ```bash
+   ffmpeg -version  # Should show version info
+   ```
+
+4. **Asset files exist:**
+   ```bash
+   ls -la configs/brand_config.json  # Should exist
+   # Check logo and background music paths in the config file
+   ```
+
+5. **Test minimal generation (without compliance):**
+   ```bash
+   python3 src/comfyui_generate.py --prompt "test" --output test.png --no-compliance-check --no-legal-check --no-report
+   ```
+
+**Performance Expectations**
+- **Image generation:** 10–30 seconds per image (depends on GPU, model size, steps)
+- **Video processing:** 5–20 seconds per minute of video (depends on resolution, effects)
+- **Localization translation:** 1–5 seconds per phrase (depends on API latency)
+- **Google Drive upload:** Varies with file size and network speed
+
+**File Permissions Guide**
+- **macOS/Linux:** Ensure you have read/write permissions to the project directory:
+  ```bash
+  chmod -R 755 creative-automation-pipeline
+  ```
+- **Avoid sudo** for Python package installation (use virtual environment)
+- **Asset files** (logo.png, background_music.mp3) should be readable by the Python process
+
+**Update Instructions**
+To update the pipeline to the latest version:
+```bash
+cd creative-automation-pipeline
+git pull origin main
+./src/install_deps.sh  # Updates Python packages
+# Check config migration notes if any breaking changes
+```
+
+**Important Notes:**
+- The pipeline requires an active internet connection for initial dependency downloads and model fetching.
+- Ensure your system has sufficient GPU memory for ComfyUI (at least 4 GB VRAM recommended for SD1.5, 8 GB for SDXL).
+- All file paths in configuration files must be absolute paths (not relative) to avoid permission errors.
+- For a smooth, glitch‑free experience, run the installation steps in order and verify each component works before proceeding.
 
 ---
 
@@ -156,7 +248,8 @@ creative-automation-pipeline/
 │   ├── run_localization_demo.sh # Localization testing
 │   └── scripts/tests/test_*.sh   # Verification scripts
 └── docs/
-    ├── demo_script.md         # 3‑minute video script
+    ├── demo_script.md         # 3‑minute video script (proof‑of‑concept demo)
+    ├── video_interview_script.md # 3‑minute interview walk‑through
     └── BRAND_GUIDELINES.md    # Brand compliance guidelines
 ```
 
@@ -233,9 +326,9 @@ creative-automation-pipeline/
 {
   "brand_name": "NexaGoods",
   "tagline": "Premium Essentials for Modern Living",
-  "logo_path": "/Users/youee-mac/IFN_Corp/creative-automation-pipeline/assets/nexagoods_logo.png",
+  "logo_path": "/absolute/path/to/your/logo.png",
   "video_settings": {
-    "background_music": "/Users/youee-mac/IFN_Corp/creative-automation-pipeline/assets/background_music.mp3"
+    "background_music": "/absolute/path/to/your/background_music.mp3"
   }
 }
 ```
@@ -257,9 +350,9 @@ creative-automation-pipeline/
 ### **assets.json** – Asset Configuration
 ```json
 {
-  "nexagoods_logo": "/Users/youee-mac/IFN_Corp/creative-automation-pipeline/assets/nexagoods_logo.png",
-  "background_music": "/Users/youee-mac/IFN_Corp/creative-automation-pipeline/assets/background_music.mp3",
-  "asset_root": "/Users/youee-mac/IFN_Corp/creative-automation-pipeline/assets"
+  "nexagoods_logo": "/absolute/path/to/your/logo.png",
+  "background_music": "/absolute/path/to/your/background_music.mp3",
+  "asset_root": "/absolute/path/to/your/assets/folder"
 }
 ```
 
@@ -361,7 +454,8 @@ sudo apt install ffmpeg
 #### **5. Google Drive Authentication Failed**
 **Solution:** Verify service account JSON file exists and has Drive API permissions:
 ```bash
-ls -la /Users/youee-mac/IFN_Corp/google_serviceaccount/
+ls -la ~/path/to/google_serviceaccount/
+# Update the path in src/comfyui_generate.py if different
 ```
 
 #### **6. HeyGen API Key Invalid**
