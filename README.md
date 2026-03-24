@@ -97,6 +97,32 @@ cd creative-automation-pipeline
 
 ---
 
+## 🧪 Example Campaigns (Ready to Test)
+
+Six ready‑to‑run campaign briefs are included in `configs/examples/` covering all target regions specified in the FDE assignment. Each brief works out‑of‑the‑box with automatic region‑to‑language mapping and graceful fallbacks.
+
+| Folder | Target Region | Language (auto‑mapped) | Products |
+|--------|---------------|------------------------|----------|
+| `1_Smart_Kitchen_Essentials_North_America` | USA | `en` (English) | Smart Coffee Maker, Air Fryer |
+| `2_Sustainable_Home_Care_Europe` | European Union (Germany/France) | `de` (German) | Biodegradable All‑Purpose Cleaner, Refillable Glass Spray Bottle |
+| `3_Premium_Personal_Care_Japan` | Japan | `ja` (Japanese) | Hydrating Serum, Sonic Facial Cleanser |
+| `4_Smart_Fitness_Tech_Middle_East` | UAE / Saudi Arabia | `ar` (Arabic) | Smart Fitness Watch, Noise‑Cancelling Earbuds |
+| `5_Nutritious_Baby_Care_Brazil` | Brazil | `pt` (Portuguese) | Organic Fruit Purees, Vitamin‑D Fortified Snacks |
+| `6_Urban_Commuter_Gear_Nordics` | Scandinavia (Sweden/Denmark) | `sv` (Swedish) | Weatherproof Commuter Backpack, Insulated Travel Mug |
+
+**Usage:**
+```bash
+# Test any example campaign
+./run_campaign_demo.sh --brief configs/examples/3_Premium_Personal_Care_Japan/brief.json
+
+# Or test localization with all regions
+./run_localization_demo.sh
+```
+
+**Note:** Region‑to‑language mapping is hardcoded in `src/localization.py`; `target_language` in brief.json is optional. Missing fields (e.g., `campaign_video_message`) fall back gracefully.
+
+---
+
 ## 📁 Repository Structure
 
 ```
@@ -107,6 +133,7 @@ creative-automation-pipeline/
 │   ├── brand_config.json       # Brand colors, logo path, music path
 │   ├── brief.json              # Campaign template (products, region, audience)
 │   ├── assets.json            # Asset path configuration
+│   ├── examples/               # 6 ready‑to‑run campaign briefs (see above)
 │   ├── default_workflow.json   # ComfyUI workflow template
 │   └── sdxl_workflow.json     # SDXL workflow for high‑quality images
 ├── src/
