@@ -32,7 +32,18 @@ cd creative-automation-pipeline
 - **Python 3.8+** with virtual environment support – install via [python.org](https://www.python.org/downloads/) or your system package manager.
 - **ComfyUI** server running on `http://127.0.0.1:8188` – follow the [ComfyUI installation guide](https://github.com/comfyanonymous/ComfyUI) to set up locally. You'll need at least one Stable Diffusion checkpoint (e.g., SD1.5, SDXL) placed in `ComfyUI/models/checkpoints/`.
 - **FFmpeg** installed (for video processing) – on macOS: `brew install ffmpeg`; on Ubuntu/Debian: `sudo apt install ffmpeg`.
-- **Voicebox TTS** (optional) – a local TTS server for voiceover generation. The pipeline expects a Voicebox server at `http://127.0.0.1:17493`. You can use other TTS services by modifying `src/video_pipeline.py`.
+- **Voicebox TTS** (optional) – a local TTS server for voiceover generation. The pipeline expects a Voicebox server at `http://127.0.0.1:17493`. **For reliable operation on macOS, disable App Nap:**  
+  ```bash
+  # Verify bundle identifier
+  mdls -name kMDItemCFBundleIdentifier /Applications/Voicebox.app
+  
+  # Disable App Nap
+  defaults write sh.voicebox.app NSAppSleepDisabled -bool YES
+  
+  # Restart Voicebox.app
+  ```
+  Check Activity Monitor → Energy tab → ensure "App Nap" column says "No" for Voicebox.  
+  You can use other TTS services by modifying `src/video_pipeline.py`.
 
 **Optional Cloud Services:**
 - **Google Drive API** credentials (optional, for cloud storage) – create a service account and download the JSON key. Place it at `~/google_serviceaccount/service_account.json` or update the path in `src/comfyui_generate.py`.
@@ -91,7 +102,18 @@ Before running any campaign, verify each component works:
    # Check logo and background music paths in the config file
    ```
 
-5. **Test minimal generation (without compliance):**
+5. **Voicebox TTS reliability (macOS):**
+   ```bash
+   # Check if Voicebox is running
+   curl -s http://127.0.0.1:17493/health  # Should return {"status":"ok"} or similar
+   
+   # Verify App Nap is disabled
+   defaults read sh.voicebox.app NSAppSleepDisabled  # Should return "1" or "YES"
+   
+   # Check Activity Monitor → Energy tab → "App Nap" column for Voicebox should say "No"
+   ```
+
+6. **Test minimal generation (without compliance):**
    ```bash
    python3 src/comfyui_generate.py --prompt "test" --output test.png --no-compliance-check --no-legal-check --no-report
    ```
@@ -191,7 +213,7 @@ git pull origin main
 
 ## 🧪 Example Campaigns (Ready to Test)
 
-Six ready‑to‑run campaign briefs are included in `configs/examples/` covering all target regions specified in the FDE assignment. Each brief works out‑of‑the‑box with automatic region‑to‑language mapping and graceful fallbacks.
+Six ready‑to‑run campaign briefs are included in `configs/examples/` covering major global regions. Each brief works out‑of‑the‑box with automatic region‑to‑language mapping and graceful fallbacks.
 
 | Folder | Target Region | Language (auto‑mapped) | Products |
 |--------|---------------|------------------------|----------|
@@ -249,7 +271,7 @@ creative-automation-pipeline/
 │   └── scripts/tests/test_*.sh   # Verification scripts
 └── docs/
     ├── demo_script.md         # 3‑minute video script (proof‑of‑concept demo)
-    ├── video_interview_script.md # 3‑minute interview walk‑through
+    ├── video_walkthrough_script.md # 4‑5 minute technical walk‑through
     └── BRAND_GUIDELINES.md    # Brand compliance guidelines
 ```
 
@@ -289,10 +311,12 @@ creative-automation-pipeline/
 2. Generates base images for all products
 3. Creates 3 aspect ratios for each product (resizing, not regenerating)
 4. Adds brand logo overlay to all images
-5. Generates voiceover from `campaign_video_message`
-6. Creates slideshow video with all product images
-7. Mixes voiceover with background music
-8. (Optional) Uploads all assets to Google Drive
+5. **NEW:** Adds text overlay with campaign message (creates `with_logo_and_textoverlay/` folder)
+6. Generates voiceover from `campaign_video_message`
+7. Creates slideshow video with all product images (uses text-overlaid images)
+8. Mixes voiceover with background music
+9. (Optional) Uploads all assets to Google Drive
+10. Uses standardized timestamp format: `YYYYMMDD_HHMM` (no seconds)
 
 ### **run_heygen_demo.sh** – Avatar Videos
 ```bash
@@ -300,10 +324,12 @@ creative-automation-pipeline/
 ./run_heygen_demo.sh --api-key YOUR_KEY --script "Campaign message"
 ```
 **Features:**
-- Uses local Ollama models for script planning
-- Searches for Voicebox‑compatible voices
-- Generates professional avatar video
-- Addresses all campaign products in single video
+- **v2 API:** Standard avatar videos with specific `avatar_id`/`voice_id` control
+- **v1 Video Agent:** Prompt-to-video generation (recommended - handles avatar selection and scripting)
+- **Authentication:** Uses `x-api-key` header (lowercase, per HeyGen docs)
+- **Error Handling:** Comprehensive error messages for API failures (401, 403, 404, 429)
+- **CLI Option:** `--method avatar|video-agent` to choose generation method
+- **API Key Validation:** Warns if key doesn't start with `sk_V2_` (v2 format)
 
 ### **run_localization_demo.sh** – Localization Testing
 ```bash
@@ -366,7 +392,8 @@ outputs/campaign/
 ├── images/
 │   ├── base/                     # 2 base AI-generated images
 │   ├── aspect_ratios/            # 6 resized images (2 × 3)
-│   └── with_logo/                # All 6 images with brand logo
+│   ├── with_logo/                # All 6 images with brand logo
+│   └── with_logo_and_textoverlay/ # NEW: Images with logo + text overlay
 ├── video/
 │   └── campaign_slideshow.mp4    # Slideshow with both products
 ├── audio/
@@ -464,6 +491,33 @@ ls -la ~/path/to/google_serviceaccount/
 export HEYGEN_API_KEY="sk_V2_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
+#### **7. Voicebox TTS Server Unavailable (macOS App Nap Issue)**
+**Problem:** Voicebox.app may unload its models (tensors) due to macOS App Nap, making the API at `http://127.0.0.1:17493` intermittently unavailable.
+
+**Solution (macOS):**
+```bash
+# 1. Verify Voicebox bundle identifier
+mdls -name kMDItemCFBundleIdentifier /Applications/Voicebox.app
+# Should output: kMDItemCFBundleIdentifier = "sh.voicebox.app"
+
+# 2. Disable App Nap for Voicebox
+defaults write sh.voicebox.app NSAppSleepDisabled -bool YES
+
+# 3. Restart Voicebox.app for changes to take effect
+```
+
+**Verification:**
+1. Open **Activity Monitor**
+2. Click the **Energy** tab
+3. Look for **Voicebox**
+4. Check the **"App Nap"** column – it should say **"No"**. If it says **"Yes"**, the model is likely unloading.
+
+**Alternative:** The pipeline includes Edge TTS fallback (Microsoft Azure neural voices) that activates automatically if Voicebox fails. For production reliability, consider running Voicebox in a dedicated terminal:
+```bash
+# Keep Voicebox running in foreground
+/Applications/Voicebox.app/Contents/MacOS/Voicebox --api-port 17493
+```
+
 ### **Debug Mode**
 ```bash
 # Enable verbose output
@@ -498,6 +552,73 @@ python3 src/video_pipeline.py --help
 - **Preview generation** with lower resolution
 
 ---
+
+## 🧹 Maintenance & Cleanup
+
+The pipeline generates various output files during execution. For clean reruns and organized file management:
+
+### **Automatic Cleanup**
+- `run_campaign_demo.sh` automatically cleans previous image/video/audio files before each run
+- Test outputs and logs are organized into structured directories
+
+### **Manual Cleanup Script**
+For comprehensive cleanup of all loose files (test outputs, backups, temporary files):
+```bash
+./scripts/cleanup.sh
+```
+
+**This script organizes:**
+- Test output files → `test_outputs/`
+- Script backup files → `backups/`
+- Temporary test scripts → `tmp/`
+- Archived test reports → `test_reports/archived/`
+- Python cache files → removed
+- System temporary files (.DS_Store, .swp, etc.) → removed
+
+### **File Organization Structure**
+```
+creative-automation-pipeline/
+├── test_outputs/           # All test execution outputs
+├── backups/               # Script backup files (.backup, .bak)
+├── tmp/                  # Temporary test scripts and files
+├── logs/app/             # Application logs (organized)
+├── test_reports/archived/# Archived test report logs
+└── outputs/campaign_*/   # Campaign outputs (timestamped, preserved)
+```
+
+### **Timestamp Format Standard**
+All timestamped files and folders use the format: **`YYYYMMDD_HHMM`** (no seconds)
+
+**Examples:**
+- **Campaign folders:** `campaign_1_Smart_Kitchen_Essentials_North_America_20260324_1437`
+- **Test reports:** `comprehensive_test_report_20260324_1400.md`
+- **Test outputs:** `campaign_test_20260324_1437.txt`
+
+**Utility functions:** Use `scripts/timestamp_utils.sh` for consistent timestamp generation:
+```bash
+source scripts/timestamp_utils.sh
+TIMESTAMP=$(get_timestamp_no_seconds)
+CAMPAIGN_FOLDER=$(get_campaign_folder_name "1_Smart_Kitchen_Essentials_North_America")
+REPORT_FILE=$(get_test_report_filename "comprehensive_test_report")
+```
+
+### **Git Ignore Recommendation**
+Add to `.gitignore` (if not already present):
+```
+# Cleanup artifacts
+test_outputs/
+backups/
+tmp/
+*.backup*
+*.bak
+test_*.txt
+demo_run_*.txt
+```
+
+### **Optional: Clean Old Campaign Directories**
+The cleanup script includes an optional section (lines 170-185) to automatically remove old campaign output directories, keeping only the 5 most recent. Uncomment this section in `scripts/cleanup.sh` if you want to save disk space.
+
+**Warning:** Only enable this if you don't need historical campaign outputs for auditing or comparison.
 
 ## 📄 License & Attribution
 
