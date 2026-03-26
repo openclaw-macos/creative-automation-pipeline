@@ -94,8 +94,14 @@ load_brief() {
     
     echo "Loading campaign brief from: $BRIEF_FILE"
     
-    # Extract campaign details using Python
-    eval $(python3 -c "
+    # Extract all campaign details using Python - output as key=value pairs
+    # Using ASCII unit separator (0x1F) as delimiter for PRODUCTS_LIST since it won't appear in product names
+    while IFS='=' read -r key value; do
+        # Remove quotes from value if present
+        value="${value%\"}"
+        value="${value#\"}"
+        declare "$key"="$value"
+    done < <(python3 -c "
 import sys, json
 sys.path.append('$SRC_DIR')
 try:
@@ -103,33 +109,38 @@ try:
         brief = json.load(f)
     
     products = brief.get('products', ['Coffee Maker'])
-    target_region = brief.get('target_region', 'USA')  # Default to USA if not in brief
+    target_region = brief.get('target_region', 'USA')
     audience = brief.get('audience', 'Young professionals 25-35')
     campaign_message = brief.get('campaign_message', 'Start your day smarter with our kitchen essentials')
     target_language = brief.get('target_language', 'en')
     
-    # Use newline for products to avoid space-splitting during eval
-    print('PRODUCTS_LIST=\"' + '\\n'.join(products) + '\"')
-    # Also keep PRODUCTS as comma-separated for compatibility
-    print('PRODUCTS=\"' + ','.join(products) + '\"')
+    # Use unit separator (0x1F) for products - won't appear in product names
+    print('PRODUCTS_LIST=' + '\x1f'.join(products))
+    print('PRODUCTS=' + ','.join(products))
     print('PRODUCT_COUNT=' + str(len(products)))
-    print('TARGET_REGION=\"' + target_region.replace('\"', '\\\\\"') + '\"')
-    print('AUDIENCE=\"' + audience.replace('\"', '\\\\\"') + '\"')
-    print('CAMPAIGN_MESSAGE=\"' + campaign_message.replace('\"', '\\\\\"') + '\"')
-    print('TARGET_LANGUAGE=\"' + target_language + '\"')
+    print('TARGET_REGION=' + target_region)
+    print('AUDIENCE=' + audience)
+    print('CAMPAIGN_MESSAGE=' + campaign_message)
+    print('TARGET_LANGUAGE=' + target_language)
     
-    # Check for campaign_video_message
     if 'campaign_video_message' in brief:
         video_msg = brief['campaign_video_message'].replace('\n', ' ')
-        print('CAMPAIGN_VIDEO_MESSAGE=\"' + video_msg.replace('\"', '\\\\\"') + '\"')
+        print('CAMPAIGN_VIDEO_MESSAGE=' + video_msg)
         
 except Exception as e:
-    print('echo \"ERROR loading brief: ' + str(e).replace('\"', '\\\\\"') + '\"; exit 1')
+    print('ERROR=' + str(e))
+    sys.exit(1)
 ")
 
-    # Set IFS to handle the newline-separated list
+    # Check if we got an error
+    if [ -n "$ERROR" ]; then
+        echo "❌ ERROR loading brief: $ERROR"
+        exit 1
+    fi
+    
+    # Create PRODUCT_ARRAY from PRODUCTS_LIST using unit separator
     OLD_IFS=$IFS
-    IFS=$'\n'
+    IFS=$'\x1f'
     PRODUCT_ARRAY=($PRODUCTS_LIST)
     IFS=$OLD_IFS
     
@@ -651,16 +662,7 @@ except Exception as e:
 }
 
 # Main execution
-echo "=== Creative Automation Pipeline with Video Demo ==="
-echo "Brief file: $BRIEF_FILE"
-if [ "$UPLOAD_TO_DRIVE" = true ]; then
-    echo "Google Drive Upload: ENABLED"
-    echo "  Service Account: $DRIVE_SERVICE_ACCOUNT"
-    echo "  Folder ID: $DRIVE_FOLDER_ID"
-else
-    echo "Google Drive Upload: DISABLED (use --upload-to-drive to enable)"
-fi
-echo ""
+# Header already printed above, don't print again
 
 # Load campaign brief (target_region comes from brief.json)
 load_brief
