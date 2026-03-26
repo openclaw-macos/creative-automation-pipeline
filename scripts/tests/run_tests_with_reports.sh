@@ -171,7 +171,7 @@ if $EXIT_CODE == 0:
 else:
     generator.add_check('Test execution failed', False, f'Exit code: $EXIT_CODE')
 
-generator.add_check('Test duration', True, f'{DURATION} seconds')
+generator.add_check('Test duration', True, f'$DURATION seconds')
 generator.end_test()
 
 report_path = generator.generate_report()

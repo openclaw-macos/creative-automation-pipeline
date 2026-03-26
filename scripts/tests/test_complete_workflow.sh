@@ -182,7 +182,7 @@ echo "4. Check folder structure:"
 echo "   ls -la campaigns/"
 echo ""
 echo "5. Verify localization works:"
-echo "   cd \"$PROJECT_ROOT\" && python3 -c \"
+echo "   cd \"$PROJECT_ROOT\" && export PYTHONPATH=\"\$PYTHONPATH:\$PWD/src\" && python3 -c \"
 import sys
 sys.path.append('./src')
 from localization import Localization
