@@ -122,6 +122,8 @@ except Exception as e:
     # Export campaign details
     eval "$CAMPAIGN_DETAILS"
     
+    BRIEF_NAME=$(basename "$BRIEF_FILE" .json)
+    
     echo "✅ Campaign loaded:"
     echo "   Products: $PRODUCTS"
     echo "   Product count: $PRODUCT_COUNT"
@@ -317,7 +319,6 @@ run_multi_product_campaign() {
             "--compliance-check"
             "--legal-check"
             "--seed" "$INDEX"
-            "--no-report"
         )
         
         # Add Google Drive arguments if enabled
@@ -555,6 +556,31 @@ try:
             print(f'✅ Campaign slideshow video created: {video_path}')
             print(f'   Size: {os.path.getsize(video_path) / 1024 / 1024:.1f} MB')
             print(f'   Images used: {len(slideshow_images)}')
+            
+            # Log video generation to pipeline database
+            try:
+                from reporting import PipelineReporter
+                import os
+                db_path = os.path.join('$PROJECT_ROOT', 'outputs', 'logs', 'pipeline_logs.db')
+                json_path = os.path.join('$PROJECT_ROOT', 'outputs', 'logs', 'run_report.json')
+                reporter = PipelineReporter(db_path=db_path, json_log_path=json_path)
+                log_id = reporter.log_video_generation(
+                    product='Multi‑Product Campaign',
+                    brief_name='$BRIEF_NAME',
+                    video_path=video_path,
+                    duration_ms=0,  # Could compute from video length if needed
+                    width=1920,
+                    height=1080,
+                    status='success',
+                    additional_info={
+                        'slideshow_images': len(slideshow_images),
+                        'video_size_mb': os.path.getsize(video_path) / 1024 / 1024,
+                        'script_length': len('''$VIDEO_SCRIPT''')
+                    }
+                )
+                print(f'✅ Logged video generation with ID: {log_id}')
+            except Exception as e:
+                print(f'⚠️  Failed to log video generation: {e}')
         else:
             print(f'❌ Slideshow creation failed')
     else:
