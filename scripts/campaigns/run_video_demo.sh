@@ -347,8 +347,10 @@ run_multi_product_campaign() {
             CMD_ARGS+=("--keep-local")
         fi
         
-        # Run generation
-        $PYTHON_EXEC "$SRC_DIR/comfyui_generate.py" "${CMD_ARGS[@]}"
+        # Run generation (continue even if command fails)
+        if ! $PYTHON_EXEC "$SRC_DIR/comfyui_generate.py" "${CMD_ARGS[@]}"; then
+            echo "⚠️  Image generation command failed for $PRODUCT (continuing)"
+        fi
         
         if [ -f "$OUTPUT_PATH" ]; then
             BASE_IMAGES+=("$OUTPUT_PATH")
@@ -542,6 +544,20 @@ try:
     print('Generating voiceover...')
     pipeline.generate_voiceover('''$VIDEO_SCRIPT''', audio_path)
     
+    # Normalize audio volume if file exists
+    if os.path.exists(audio_path):
+        import subprocess
+        temp_path = audio_path + '.normalized.mp3'
+        cmd = ['ffmpeg', '-y', '-i', audio_path, '-af', 'volume=5dB', temp_path]
+        try:
+            subprocess.run(cmd, capture_output=True, check=True)
+            os.replace(temp_path, audio_path)
+            print(f'✅ Voiceover volume normalized (+5dB)')
+        except Exception as e:
+            print(f'⚠️  Volume normalization failed: {e}')
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+    
     # Create slideshow video
     video_path = '$CAMPAIGN_OUTPUTS_DIR/video/campaign_slideshow.mp4'
     
@@ -566,8 +582,8 @@ try:
             slideshow_images, 
             audio_path, 
             video_path,
-            duration_per_image=5,  # 5 seconds per image
-            transition_duration=1.0  # 1 second crossfade
+            duration_per_image=10,  # 10 seconds per image (was 5)
+            transition_duration=2.0  # 2 second crossfade (was 1.0)
         )
         
         if os.path.exists(video_path):
