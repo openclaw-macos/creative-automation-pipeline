@@ -152,9 +152,17 @@ ls -la "$CAMPAIGNS_DIR/" 2>/dev/null | grep "^d" | awk '{print "   - "$9}'
 
 echo ""
 echo "✅ Key files created:"
-find "$CAMPAIGNS_DIR" -name "brief.json" 2>/dev/null | head -3 | while read file; do
-    echo "   - $file"
-done
+# Use realpath to show cleaner absolute paths, with fallback for systems without realpath
+if command -v realpath >/dev/null 2>&1; then
+    find "$CAMPAIGNS_DIR" -name "brief.json" 2>/dev/null | head -3 | while read file; do
+        clean_path=$(realpath "$file" 2>/dev/null || echo "$file")
+        echo "   - $clean_path"
+    done
+else
+    find "$CAMPAIGNS_DIR" -name "brief.json" 2>/dev/null | head -3 | while read file; do
+        echo "   - $file"
+    done
+fi
 
 echo ""
 echo "============================================================"
@@ -174,9 +182,9 @@ echo "4. Check folder structure:"
 echo "   ls -la campaigns/"
 echo ""
 echo "5. Verify localization works:"
-echo "   python3 -c \"
+echo "   cd \"$PROJECT_ROOT\" && python3 -c \"
 import sys
-sys.path.append('$PROJECT_ROOT/src')
+sys.path.append('./src')
 from localization import Localization
 loc = Localization(use_mock=True)
 text = 'Start your day smarter with our kitchen essentials'

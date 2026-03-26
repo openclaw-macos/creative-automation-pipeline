@@ -44,7 +44,11 @@ for region in "${REGIONS[@]}"; do
     echo "-----------------------------------"
     
     # Create region-specific output directory
-    REGION_DIR="$OUTPUTS_DIR/${region//[ \/()]/_}"  # Replace spaces/slashes/parentheses with underscores
+    REGION_CLEAN="${region//[ \/()]/_}"  # Replace spaces/slashes/parentheses with underscores
+    REGION_CLEAN="${REGION_CLEAN//__/_}"    # Replace double underscores with single
+    REGION_CLEAN="${REGION_CLEAN/#_/}"      # Remove leading underscore  
+    REGION_CLEAN="${REGION_CLEAN/%_/}"      # Remove trailing underscore
+    REGION_DIR="$OUTPUTS_DIR/$REGION_CLEAN"
     mkdir -p "$REGION_DIR"
     
     # Test localization module
