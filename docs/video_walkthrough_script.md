@@ -74,13 +74,19 @@ cd creative-automation-pipeline
 
 2. **Configure assets** by updating the logo and music paths in `configs/brand_config.json`.
 
-3. **Run a complete campaign** with the built-in demo script.
+3. **Run a complete campaign** with the built-in demo scripts.
 
+**For complete 5-step automation (images → video → avatar → combined → YouTube):**
+```bash
+./run_campaign_demo.sh --brief configs/brief.json
+```
+
+**For video-only workflows (images + video creation):**
 ```bash
 ./scripts/campaigns/run_video_demo.sh
 ```
 
-"That single command triggers the entire workflow: image generation, aspect-ratio creation, logo overlay, voiceover synthesis, video assembly, and optional Google Drive upload."
+"These commands trigger the entire workflow: image generation, aspect-ratio creation, logo overlay, voiceover synthesis, video assembly, and optional Google Drive upload. The master orchestrator (`run_campaign_demo.sh`) handles all five pipeline stages with unified error handling."
 
 ---
 
@@ -96,8 +102,14 @@ cd creative-automation-pipeline
 "For instance, to test the Japanese campaign, you'd run:
 
 ```bash
+# Copy the Japanese brief
 cp configs/examples/3_Premium_Personal_Care_Japan/brief.json configs/brief.json
-./scripts/campaigns/run_video_demo.sh
+
+# Run complete 5-step campaign with master orchestrator
+./run_campaign_demo.sh --brief configs/brief.json
+
+# Or for video-only workflow:
+# ./scripts/campaigns/run_video_demo.sh
 ```
 
 "The system gracefully handles missing fields, uses free translation APIs, and falls back to mock translations if offline.

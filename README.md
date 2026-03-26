@@ -238,7 +238,7 @@ Six ready‑to‑run campaign briefs are included in `configs/examples/` coverin
 
 **Note:** Region‑to‑language mapping is hardcoded in `src/localization.py`; `target_language` in brief.json is optional. Missing fields (e.g., `campaign_video_message`) fall back gracefully.
 
-**Campaign Folder Naming Standard:** New campaigns use timestamped folder names: `campaign_{number}_{product_type}_{region}_{timestamp}` (e.g., `campaign_2_Sustainable_Home_Care_Europe_20260324_143914`). Example campaigns above use legacy numbering for compatibility.
+**Campaign Folder Naming Standard:** New campaigns use timestamped folder names: `campaign_{number}_{product_type}_{region}_{timestamp}` using standardized format `YYYYMMDD_HHMM` (no seconds). Example: `campaign_2_Sustainable_Home_Care_Europe_20260324_1439`. Example campaigns above use legacy numbering for compatibility.
 
 ---
 
@@ -248,6 +248,7 @@ Six ready‑to‑run campaign briefs are included in `configs/examples/` coverin
 creative-automation-pipeline/
 ├── README.md                    # This documentation
 ├── requirements.txt             # Python dependencies
+├── run_campaign_demo.sh         # Master orchestrator (runs all 5 steps sequentially)
 ├── configs/
 │   ├── brand_config.json       # Brand colors, logo path, music path
 │   ├── brief.json              # Campaign template (products, region, audience)
@@ -279,7 +280,10 @@ creative-automation-pipeline/
 │   │   ├── test_*.sh                   # Individual test scripts
 │   │   └── run_tests_with_reports.sh   # Test runner with timestamped reports
 │   └── utils/
-│       └── fix_permissions.sh          # Utility script
+│       ├── fix_permissions.sh          # Utility script
+│       ├── timestamp_utils.sh          # Bash timestamp utilities (YYYYMMDD_HHMM format)
+│       ├── test_campaign_template.sh   # Campaign testing template with timestamped reports
+│       └── cleanup.sh                  # Output organization and cleanup utility
 └── docs/
     ├── demo_script.md         # 3‑minute video script (proof‑of‑concept demo)
     ├── video_walkthrough_script.md # 4‑5 minute technical walk‑through
@@ -289,6 +293,10 @@ creative-automation-pipeline/
 ---
 
 ## 🛠️ Script Reference
+
+**Note:** For single‑command execution of the complete 5‑step pipeline, use the master orchestrator:  
+`./run_campaign_demo.sh --brief configs/brief.json`  
+The individual scripts below are useful for debugging or specific workflow steps.
 
 ### **(Step 1) run_images_demo.sh** – Image Generation Pipeline
 ```bash
@@ -387,7 +395,30 @@ The five campaign scripts work in sequence, each using output from the previous 
 
 **Logging:** Each stage automatically logs to the unified SQLite database (`outputs/logs/pipeline_logs.db`) with stage-specific metadata for complete campaign auditability.
 
+### **Master Orchestrator: `run_campaign_demo.sh`**
+For single-command execution of the entire 5-step sequence, use the master orchestrator:
+```bash
+# Run complete campaign with unified error handling and progress tracking
+./run_campaign_demo.sh --brief configs/brief.json [--verbose] [--simulate] [--upload-to-drive]
+```
+**Features:**
+- Runs all 5 steps sequentially with automatic error handling (stops on failure)
+- Unified progress tracking with color-coded output
+- Supports simulation mode (no real API calls)
+- Configurable via command-line flags (verbose, upload-to-drive, keep-intermediates, etc.)
+- Maintains full logging to `pipeline_logs.db` for each stage
+
 **Example full campaign execution:**
+
+**Option A: Master Orchestrator (Recommended)**
+```bash
+# Single command runs all 5 steps with unified error handling and progress tracking
+./run_campaign_demo.sh --brief configs/brief.json --verbose
+```
+*With Google Drive upload:* `./run_campaign_demo.sh --brief configs/brief.json --upload-to-drive`
+*Simulation mode (no real APIs):* `./run_campaign_demo.sh --brief configs/brief.json --simulate --verbose`
+
+**Option B: Individual Steps (For Debugging)**
 ```bash
 # Step 1: Generate product images
 ./scripts/campaigns/run_images_demo.sh --brief configs/brief.json
@@ -409,6 +440,36 @@ The five campaign scripts work in sequence, each using output from the previous 
 ```bash
 # Test all 6 region localizations (now in tests folder)
 ./scripts/tests/test_localization_demo.sh
+```
+
+### **Utility Scripts**
+
+**`scripts/timestamp_utils.sh`** – Standardized timestamp functions
+```bash
+# Source in scripts for standardized YYYYMMDD_HHMM timestamp format
+source scripts/timestamp_utils.sh
+TIMESTAMP=$(get_timestamp_no_seconds)  # Returns: 20260325_1437
+```
+Provides: `get_timestamp_no_seconds`, `get_timestamp_with_seconds`, `get_readable_date`, `get_campaign_folder_name`, `get_test_report_filename`
+
+**`scripts/test_campaign_template.sh`** – Campaign testing template
+```bash
+# Run a complete campaign test with timestamped outputs and reports
+./scripts/test_campaign_template.sh 1_Smart_Kitchen_Essentials_North_America
+```
+Creates: timestamped test outputs in `test_outputs/`, Markdown reports in `test_reports/`, organized campaign folders
+
+**`scripts/cleanup.sh`** – Output organization utility
+```bash
+# Organize outputs, move test files to test_outputs/, backups to backups/
+./scripts/cleanup.sh
+```
+Creates: `test_outputs/`, `backups/`, `test_reports/` directories; moves temporary files; optional old campaign cleanup
+
+**`scripts/utils/fix_permissions.sh`** – Permission fixing utility
+```bash
+# Fix permissions for all scripts in the repository
+./scripts/utils/fix_permissions.sh
 ```
 
 ## 📁 Outputs Folder Structure
