@@ -270,7 +270,7 @@ def main():
     parser.add_argument("--target-language", help="Target language code (e.g., en, ja, de). Overrides region-based mapping")
     parser.add_argument("--brief", help="Path to brief.json file (overrides individual campaign arguments)")
     
-    # Google Drive upload arguments (FDE assignment requirement)
+    # Google Drive upload arguments (cloud storage integration)
     parser.add_argument("--upload-to-drive", action="store_true", help="Upload outputs to Google Drive")
     parser.add_argument("--drive-service-account", default=DEFAULT_SERVICE_ACCOUNT, help=f"Path to Google service account JSON (default: {DEFAULT_SERVICE_ACCOUNT})")
     parser.add_argument("--drive-folder-id", default=DEFAULT_DRIVE_FOLDER_ID, help=f"Google Drive folder ID (default: {DEFAULT_DRIVE_FOLDER_ID})")

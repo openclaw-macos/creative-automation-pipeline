@@ -10,7 +10,7 @@ SRC_DIR="$PROJECT_ROOT/src"
 
 echo "============================================================"
 echo "COMPREHENSIVE LOCALIZATION TEST"
-echo "Verifying all FDE take-home assignment requirements"
+echo "Verifying all localization and campaign requirements"
 echo "============================================================"
 echo ""
 

@@ -32,7 +32,18 @@ cd creative-automation-pipeline
 - **Python 3.8+** with virtual environment support – install via [python.org](https://www.python.org/downloads/) or your system package manager.
 - **ComfyUI** server running on `http://127.0.0.1:8188` – follow the [ComfyUI installation guide](https://github.com/comfyanonymous/ComfyUI) to set up locally. You'll need at least one Stable Diffusion checkpoint (e.g., SD1.5, SDXL) placed in `ComfyUI/models/checkpoints/`.
 - **FFmpeg** installed (for video processing) – on macOS: `brew install ffmpeg`; on Ubuntu/Debian: `sudo apt install ffmpeg`.
-- **Voicebox TTS** (optional) – a local TTS server for voiceover generation. The pipeline expects a Voicebox server at `http://127.0.0.1:17493`. You can use other TTS services by modifying `src/video_pipeline.py`.
+- **Voicebox TTS** (optional) – a local TTS server for voiceover generation. The pipeline expects a Voicebox server at `http://127.0.0.1:17493`. **For reliable operation on macOS, disable App Nap:**  
+  ```bash
+  # Verify bundle identifier
+  mdls -name kMDItemCFBundleIdentifier /Applications/Voicebox.app
+  
+  # Disable App Nap
+  defaults write sh.voicebox.app NSAppSleepDisabled -bool YES
+  
+  # Restart Voicebox.app
+  ```
+  Check Activity Monitor → Energy tab → ensure "App Nap" column says "No" for Voicebox.  
+  You can use other TTS services by modifying `src/video_pipeline.py`.
 
 **Optional Cloud Services:**
 - **Google Drive API** credentials (optional, for cloud storage) – create a service account and download the JSON key. Place it at `~/google_serviceaccount/service_account.json` or update the path in `src/comfyui_generate.py`.
@@ -91,7 +102,18 @@ Before running any campaign, verify each component works:
    # Check logo and background music paths in the config file
    ```
 
-5. **Test minimal generation (without compliance):**
+5. **Voicebox TTS reliability (macOS):**
+   ```bash
+   # Check if Voicebox is running
+   curl -s http://127.0.0.1:17493/health  # Should return {"status":"ok"} or similar
+   
+   # Verify App Nap is disabled
+   defaults read sh.voicebox.app NSAppSleepDisabled  # Should return "1" or "YES"
+   
+   # Check Activity Monitor → Energy tab → "App Nap" column for Voicebox should say "No"
+   ```
+
+6. **Test minimal generation (without compliance):**
    ```bash
    python3 src/comfyui_generate.py --prompt "test" --output test.png --no-compliance-check --no-legal-check --no-report
    ```
@@ -194,7 +216,7 @@ git pull origin main
 
 ## 🧪 Example Campaigns (Ready to Test)
 
-Six ready‑to‑run campaign briefs are included in `configs/examples/` covering all target regions specified in the FDE assignment. Each brief works out‑of‑the‑box with automatic region‑to‑language mapping and graceful fallbacks.
+Six ready‑to‑run campaign briefs are included in `configs/examples/` covering major global regions. Each brief works out‑of‑the‑box with automatic region‑to‑language mapping and graceful fallbacks.
 
 | Folder | Target Region | Language (auto‑mapped) | Products |
 |--------|---------------|------------------------|----------|
@@ -260,7 +282,7 @@ creative-automation-pipeline/
 │       └── fix_permissions.sh          # Utility script
 └── docs/
     ├── demo_script.md         # 3‑minute video script (proof‑of‑concept demo)
-    ├── video_interview_script.md # 3‑minute interview walk‑through
+    ├── video_walkthrough_script.md # 4‑5 minute technical walk‑through
     └── BRAND_GUIDELINES.md    # Brand compliance guidelines
 ```
 
@@ -305,6 +327,7 @@ creative-automation-pipeline/
 8. Mixes voiceover with background music
 9. (Optional) Uploads all assets to Google Drive (`--upload-to-drive`)
 10. Output: Organized campaign folder at `outputs/campaign/` with slideshow video
+11. Uses standardized timestamp format: `YYYYMMDD_HHMM` (no seconds)
 
 ### **(Step 3) run_heygen_demo.sh** – Consolidated Avatar Videos
 ```bash
