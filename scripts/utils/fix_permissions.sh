@@ -4,14 +4,16 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 echo "=== Fixing script permissions ==="
 echo ""
+echo "Project root: $PROJECT_ROOT"
+cd "$PROJECT_ROOT"
 
-# Make all shell scripts executable
+# Make all shell scripts executable recursively
 echo "Making shell scripts executable..."
-chmod +x *.sh 2>/dev/null || true
-chmod +x src/*.sh 2>/dev/null || true
+find . -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
 
 # Make Python scripts executable
 echo "Making Python scripts executable..."

@@ -180,6 +180,8 @@ main() {
     # Generate test report
     REPORT_FILENAME=$(get_test_report_filename "test_report_${CAMPAIGN_NAME}")
     REPORT_FILE="${PROJECT_ROOT}/test_reports/${REPORT_FILENAME}"
+    
+    mkdir -p "${PROJECT_ROOT}/test_reports"
 
     if [ "$QUIET" = false ]; then
         echo "📊 Generating test report: $REPORT_FILE"

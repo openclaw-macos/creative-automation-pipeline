@@ -56,8 +56,16 @@ class VideoPipeline:
             language_code: ISO 639-1 language code (e.g., "en", "ja"). 
                           If None, auto-detected from target_region.
         """
-        self.brand_config_path = brand_config_path
-        with open(brand_config_path, 'r', encoding='utf-8') as f:
+        # Resolve brand config path relative to this script if not absolute
+        if os.path.isabs(brand_config_path):
+            self.brand_config_path = brand_config_path
+        else:
+            # Get directory of this script (src/)
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            # Join with script directory and normalize (handles ..)
+            self.brand_config_path = os.path.abspath(os.path.join(script_dir, brand_config_path))
+        
+        with open(self.brand_config_path, 'r', encoding='utf-8') as f:
             self.config = json.load(f)
         
         self.target_region = target_region

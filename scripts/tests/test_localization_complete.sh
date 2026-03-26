@@ -19,8 +19,18 @@ echo "TEST 1: Localization Module"
 echo "---------------------------"
 python3 -c "
 import sys
-sys.path.append('$SRC_DIR')
-from localization import Localization
+import os
+
+# Add both src and project root to Python path
+sys.path.insert(0, '$SRC_DIR')
+sys.path.insert(0, '$PROJECT_ROOT')
+
+try:
+    from localization import Localization
+except ImportError as e:
+    print(f'ERROR: Failed to import localization: {e}')
+    print(f'sys.path: {sys.path}')
+    sys.exit(1)
 
 loc = Localization(use_mock=True)
 
@@ -55,7 +65,7 @@ if all_pass:
     print('\n✅ TEST 1 PASSED: All region mappings correct')
 else:
     print('\n❌ TEST 1 FAILED: Some region mappings incorrect')
-    exit 1
+    sys.exit(1)
 "
 
 echo ""
@@ -63,11 +73,20 @@ echo "TEST 2: Campaign Manager & Folder Structure"
 echo "--------------------------------------------"
 python3 -c "
 import sys
-sys.path.append('$SRC_DIR')
 import os
 import json
 import tempfile
-from campaign_manager import CampaignManager
+
+# Add both src and project root to Python path
+sys.path.insert(0, '$SRC_DIR')
+sys.path.insert(0, '$PROJECT_ROOT')
+
+try:
+    from campaign_manager import CampaignManager
+except ImportError as e:
+    print(f'ERROR: Failed to import campaign_manager: {e}')
+    print(f'sys.path: {sys.path}')
+    sys.exit(1)
 
 # Create temporary directory for testing
 with tempfile.TemporaryDirectory() as tmpdir:
@@ -113,7 +132,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
         print('\n✅ TEST 2 PASSED: Folder structure created correctly')
     else:
         print('\n❌ TEST 2 FAILED: Folder structure incomplete')
-        exit 1
+        sys.exit(1)
 "
 
 echo ""
@@ -121,9 +140,19 @@ echo "TEST 3: Integration with Video Pipeline"
 echo "----------------------------------------"
 python3 -c "
 import sys
-sys.path.append('$SRC_DIR')
-from video_pipeline import VideoPipeline
-from localization import Localization
+import os
+
+# Add both src and project root to Python path
+sys.path.insert(0, '$SRC_DIR')
+sys.path.insert(0, '$PROJECT_ROOT')
+
+try:
+    from video_pipeline import VideoPipeline
+    from localization import Localization
+except ImportError as e:
+    print(f'ERROR: Failed to import video_pipeline or localization: {e}')
+    print(f'sys.path: {sys.path}')
+    sys.exit(1)
 
 # Test initialization with different regions
 test_cases = [
@@ -153,9 +182,19 @@ echo "TEST 4: Integration with HeyGen"
 echo "--------------------------------"
 python3 -c "
 import sys
-sys.path.append('$SRC_DIR')
-from heygen_integration import HeyGenIntegration
-from localization import Localization
+import os
+
+# Add both src and project root to Python path
+sys.path.insert(0, '$SRC_DIR')
+sys.path.insert(0, '$PROJECT_ROOT')
+
+try:
+    from heygen_integration import HeyGenIntegration
+    from localization import Localization
+except ImportError as e:
+    print(f'ERROR: Failed to import heygen_integration or localization: {e}')
+    print(f'sys.path: {sys.path}')
+    sys.exit(1)
 
 print('Testing HeyGen integration with localization (simulated):')
 
