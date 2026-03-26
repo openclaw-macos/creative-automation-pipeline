@@ -33,6 +33,13 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+*.backup*
+*.bak
+
+# Cleanup script directories (created by scripts/cleanup.sh)
+test_outputs/
+backups/
+test_reports/
 
 # macOS
 .DS_Store
