@@ -4,6 +4,7 @@
 # Optional: clean old campaign directories
 
 set -e
+set -u  # Treat unset variables as errors
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"

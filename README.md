@@ -399,14 +399,35 @@ The five campaign scripts work in sequence, each using output from the previous 
 For single-command execution of the entire 5-step sequence, use the master orchestrator:
 ```bash
 # Run complete campaign with unified error handling and progress tracking
-./run_campaign_demo.sh --brief configs/brief.json [--verbose] [--simulate] [--upload-to-drive]
+./run_campaign_demo.sh --brief configs/brief.json [OPTIONS]
 ```
 **Features:**
 - Runs all 5 steps sequentially with automatic error handling (stops on failure)
-- Unified progress tracking with color-coded output
-- Supports simulation mode (no real API calls)
-- Configurable via command-line flags (verbose, upload-to-drive, keep-intermediates, etc.)
+- Unified progress tracking with color-coded output (adapts to terminal capabilities)
+- Supports simulation mode (no real API calls, faster testing)
+- Configurable via comprehensive command-line flags
 - Maintains full logging to `pipeline_logs.db` for each stage
+- Safe command construction (handles paths with spaces/special characters)
+
+**Complete Flag Reference:**
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--brief FILE` | **Required.** Path to campaign brief.json | *(none)* |
+| `--verbose` | Enable verbose output (shows all subcommand output) | `false` |
+| `--simulate` | Simulation mode (no real API calls, skip compliance checks) | `false` |
+| `--upload-to-drive` | Upload outputs to Google Drive (ignored in simulation) | `false` |
+| `--drive-service-account PATH` | Google service account JSON path | `""` |
+| `--drive-folder-id ID` | Google Drive folder ID | `""` |
+| `--heygen-api-key KEY` | HeyGen API key (required for real avatar generation) | `""` |
+| `--client-secrets PATH` | OAuth client_secrets.json for YouTube upload | `""` |
+| `--keep-intermediates` | Keep intermediate video files (don't clean up) | `false` |
+| `--help` | Show usage information | N/A |
+
+**Simulation Mode Behavior:**
+- **Step 1 (Images):** Runs normally (ComfyUI is local, no external APIs)
+- **Step 2 (Video):** Skips Google Drive upload (even if `--upload-to-drive` specified)
+- **Step 3 (Avatar):** Uses mock/offline translation (default, no API key needed)
+- **Step 5 (YouTube):** Uses `--simulate` flag (no real upload)
 
 **Example full campaign execution:**
 
@@ -455,9 +476,16 @@ Provides: `get_timestamp_no_seconds`, `get_timestamp_with_seconds`, `get_readabl
 **`scripts/test_campaign_template.sh`** – Campaign testing template
 ```bash
 # Run a complete campaign test with timestamped outputs and reports
-./scripts/test_campaign_template.sh 1_Smart_Kitchen_Essentials_North_America
+./scripts/test_campaign_template.sh 1_Smart_Kitchen_Essentials_North_America [OPTIONS]
 ```
-Creates: timestamped test outputs in `test_outputs/`, Markdown reports in `test_reports/`, organized campaign folders
+**Options:**
+- `--quiet` – Quiet mode (minimal output, no verbose)
+- `--simulate` – Simulation mode (no real API calls)
+- `--upload-to-drive` – Upload outputs to Google Drive
+- `--heygen-api-key KEY` – HeyGen API key for avatar generation
+- `--client-secrets PATH` – OAuth client_secrets.json for YouTube
+
+**Creates:** Timestamped test outputs in `test_outputs/`, Markdown reports in `test_reports/`, organized campaign folders with standardized naming (`campaign_{name}_{timestamp}`)
 
 **`scripts/cleanup.sh`** – Output organization utility
 ```bash

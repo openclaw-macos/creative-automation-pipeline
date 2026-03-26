@@ -4,6 +4,7 @@
 # Handles errors, provides unified progress tracking, supports simulation mode
 
 set -e
+set -u  # Treat unset variables as errors
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
@@ -27,21 +28,44 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Print colored message
+# Check if terminal supports colors
+if [ -t 1 ]; then
+    USE_COLORS=true
+else
+    USE_COLORS=false
+fi
+
+# Print colored message (conditional)
 print_step() {
-    echo -e "${BLUE}▶ $1${NC}"
+    if [ "$USE_COLORS" = true ]; then
+        echo -e "${BLUE}▶ $1${NC}"
+    else
+        echo "▶ $1"
+    fi
 }
 
 print_success() {
-    echo -e "${GREEN}✓ $1${NC}"
+    if [ "$USE_COLORS" = true ]; then
+        echo -e "${GREEN}✓ $1${NC}"
+    else
+        echo "✓ $1"
+    fi
 }
 
 print_warning() {
-    echo -e "${YELLOW}⚠ $1${NC}"
+    if [ "$USE_COLORS" = true ]; then
+        echo -e "${YELLOW}⚠ $1${NC}"
+    else
+        echo "⚠ $1"
+    fi
 }
 
 print_error() {
-    echo -e "${RED}✗ $1${NC}"
+    if [ "$USE_COLORS" = true ]; then
+        echo -e "${RED}✗ $1${NC}"
+    else
+        echo "✗ $1"
+    fi
 }
 
 # Show usage
@@ -154,28 +178,37 @@ run_step() {
     echo "Command: $command"
     echo ""
     
-    if [ "$VERBOSE" = true ]; then
-        eval "$command"
-    else
-        eval "$command" 2>&1 | grep -E "(✅|❌|⚠️|Running|Generating|Creating|Uploading|Step|Complete|Finished)" || true
-    fi
-    
-    local exit_code=${PIPESTATUS[0]}
-    
-    if [ $exit_code -eq 0 ]; then
+    # Run the command directly (no grep filtering that hides errors)
+    if eval "$command"; then
         print_success "Step ${step_num} completed successfully"
         return 0
     else
+        local exit_code=$?
         print_error "Step ${step_num} failed with exit code $exit_code"
         return $exit_code
     fi
 }
 
+# Build command array safely
+build_command() {
+    local cmd_array=("$1")
+    shift
+    local args=("$@")
+    
+    # Simple string construction for now (compatible with existing run_step)
+    local cmd_string="${cmd_array[0]}"
+    for arg in "${args[@]}"; do
+        cmd_string="$cmd_string \"$arg\""
+    done
+    echo "$cmd_string"
+}
+
 # Main execution
 main() {
-    echo "============================================================"
+    local separator="============================================================"
+    echo "$separator"
     echo "🎬 Creative Automation Pipeline - Complete Campaign Orchestrator"
-    echo "============================================================"
+    echo "$separator"
     echo "Brief: $BRIEF_FILE"
     echo "Mode: $([ "$SIMULATE" = true ] && echo "Simulation" || echo "Production")"
     echo "Verbose: $([ "$VERBOSE" = true ] && echo "Yes" || echo "No")"
@@ -185,83 +218,109 @@ main() {
     START_TIME=$(date +%s)
     
     # Step 1: Image Generation
-    STEP1_CMD="./scripts/campaigns/run_images_demo.sh --brief \"$BRIEF_FILE\""
+    local step1_args=()
+    step1_args+=("./scripts/campaigns/run_images_demo.sh")
+    step1_args+=("--brief" "$BRIEF_FILE")
     if [ "$VERBOSE" = true ]; then
-        STEP1_CMD="$STEP1_CMD --verbose"
+        step1_args+=("--verbose")
     fi
-    if [ "$UPLOAD_TO_DRIVE" = true ]; then
-        STEP1_CMD="$STEP1_CMD --upload-to-drive"
+    # Image generation is local (ComfyUI), so we run it even in simulation mode
+    # Note: We don't add simulation-specific flags as they may not be supported
+    if [ "$UPLOAD_TO_DRIVE" = true ] && [ "$SIMULATE" = false ]; then
+        step1_args+=("--upload-to-drive")
         if [ -n "$DRIVE_SERVICE_ACCOUNT" ]; then
-            STEP1_CMD="$STEP1_CMD --drive-service-account \"$DRIVE_SERVICE_ACCOUNT\""
+            step1_args+=("--drive-service-account" "$DRIVE_SERVICE_ACCOUNT")
         fi
         if [ -n "$DRIVE_FOLDER_ID" ]; then
-            STEP1_CMD="$STEP1_CMD --drive-folder-id \"$DRIVE_FOLDER_ID\""
+            step1_args+=("--drive-folder-id" "$DRIVE_FOLDER_ID")
         fi
     fi
+    
+    STEP1_CMD=$(build_command "${step1_args[@]}")
     run_step 1 "Image Generation" "$STEP1_CMD" || {
         print_error "Pipeline stopped at Step 1"
         exit 1
     }
     
     # Step 2: Products Video Creation
-    STEP2_CMD="./scripts/campaigns/run_video_demo.sh --brief \"$BRIEF_FILE\""
+    local step2_args=()
+    step2_args+=("./scripts/campaigns/run_video_demo.sh")
+    step2_args+=("--brief" "$BRIEF_FILE")
     if [ "$VERBOSE" = true ]; then
-        STEP2_CMD="$STEP2_CMD --verbose"
+        step2_args+=("--verbose")
     fi
-    if [ "$UPLOAD_TO_DRIVE" = true ]; then
-        STEP2_CMD="$STEP2_CMD --upload-to-drive"
+    if [ "$UPLOAD_TO_DRIVE" = true ] && [ "$SIMULATE" = false ]; then
+        step2_args+=("--upload-to-drive")
         if [ -n "$DRIVE_SERVICE_ACCOUNT" ]; then
-            STEP2_CMD="$STEP2_CMD --drive-service-account \"$DRIVE_SERVICE_ACCOUNT\""
+            step2_args+=("--drive-service-account" "$DRIVE_SERVICE_ACCOUNT")
         fi
         if [ -n "$DRIVE_FOLDER_ID" ]; then
-            STEP2_CMD="$STEP2_CMD --drive-folder-id \"$DRIVE_FOLDER_ID\""
+            step2_args+=("--drive-folder-id" "$DRIVE_FOLDER_ID")
         fi
     fi
+    
+    STEP2_CMD=$(build_command "${step2_args[@]}")
     run_step 2 "Products Video Creation" "$STEP2_CMD" || {
         print_error "Pipeline stopped at Step 2"
         exit 1
     }
     
     # Step 3: Avatar Video Generation (HeyGen)
-    STEP3_CMD="./scripts/campaigns/run_heygen_demo.sh --brief \"$BRIEF_FILE\""
+    local step3_args=()
+    step3_args+=("./scripts/campaigns/run_heygen_demo.sh")
+    step3_args+=("--brief" "$BRIEF_FILE")
     if [ "$VERBOSE" = true ]; then
-        STEP3_CMD="$STEP3_CMD --verbose"
+        step3_args+=("--verbose")
     fi
-    if [ -n "$HEYGEN_API_KEY" ]; then
-        STEP3_CMD="$STEP3_CMD --api-key \"$HEYGEN_API_KEY\""
+    # HeyGen flag handling: Default is mock/offline
+    # In simulation mode: keep default (mock) - don't add any flags
+    # In production mode: add API key if provided
+    if [ "$SIMULATE" = false ] && [ -n "$HEYGEN_API_KEY" ]; then
+        step3_args+=("--api-key" "$HEYGEN_API_KEY")
     fi
-    if [ "$SIMULATE" = true ]; then
-        STEP3_CMD="$STEP3_CMD --use-real-translation false"
-    fi
+    # Note: We don't add --use-real-translation in either mode
+    # because default is mock/offline (safe for simulation)
+    # and real translation requires explicit user request
+    
+    STEP3_CMD=$(build_command "${step3_args[@]}")
     run_step 3 "Avatar Video Generation" "$STEP3_CMD" || {
         print_error "Pipeline stopped at Step 3"
         exit 1
     }
     
     # Step 4: Combined Video Creation
-    STEP4_CMD="./scripts/campaigns/run_heygen_products_demo.sh --brief \"$BRIEF_FILE\""
+    local step4_args=()
+    step4_args+=("./scripts/campaigns/run_heygen_products_demo.sh")
+    step4_args+=("--brief" "$BRIEF_FILE")
     if [ "$VERBOSE" = true ]; then
-        STEP4_CMD="$STEP4_CMD --verbose"
+        step4_args+=("--verbose")
     fi
     if [ "$KEEP_INTERMEDIATES" = true ]; then
-        STEP4_CMD="$STEP4_CMD --keep-intermediates"
+        step4_args+=("--keep-intermediates")
     fi
+    # In simulation mode, we can't actually combine videos, but script handles gracefully
+    
+    STEP4_CMD=$(build_command "${step4_args[@]}")
     run_step 4 "Combined Video Creation" "$STEP4_CMD" || {
         print_error "Pipeline stopped at Step 4"
         exit 1
     }
     
     # Step 5: YouTube Upload
-    STEP5_CMD="./scripts/campaigns/run_youtube_heygen_products_demo.sh --brief \"$BRIEF_FILE\""
+    local step5_args=()
+    step5_args+=("./scripts/campaigns/run_youtube_heygen_products_demo.sh")
+    step5_args+=("--brief" "$BRIEF_FILE")
     if [ "$VERBOSE" = true ]; then
-        STEP5_CMD="$STEP5_CMD --verbose"
+        step5_args+=("--verbose")
     fi
     if [ -n "$CLIENT_SECRETS" ]; then
-        STEP5_CMD="$STEP5_CMD --secrets \"$CLIENT_SECRETS\""
+        step5_args+=("--secrets" "$CLIENT_SECRETS")
     fi
     if [ "$SIMULATE" = true ]; then
-        STEP5_CMD="$STEP5_CMD --simulate"
+        step5_args+=("--simulate")
     fi
+    
+    STEP5_CMD=$(build_command "${step5_args[@]}")
     run_step 5 "YouTube Upload" "$STEP5_CMD" || {
         print_error "Pipeline stopped at Step 5"
         exit 1
@@ -272,9 +331,9 @@ main() {
     TOTAL_DURATION=$((END_TIME - START_TIME))
     
     echo ""
-    echo "============================================================"
+    echo "$separator"
     print_success "All 5 steps completed successfully!"
-    echo "============================================================"
+    echo "$separator"
     echo ""
     echo "📊 Campaign Summary:"
     echo "  • Brief: $(basename "$BRIEF_FILE")"
