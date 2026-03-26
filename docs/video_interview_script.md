@@ -77,7 +77,7 @@ cd creative-automation-pipeline
 3. **Run a complete campaign** with the built‑in demo script.
 
 ```bash
-./scripts/tests/test_campaign_demo.sh --brief configs/brief.json
+./scripts/campaigns/run_video_demo.sh
 ```
 
 “That single command triggers the entire workflow: image generation, aspect‑ratio creation, logo overlay, voiceover synthesis, video assembly, and optional Google Drive upload.”
@@ -96,7 +96,8 @@ cd creative-automation-pipeline
 “For instance, to test the Japanese campaign, you’d run:
 
 ```bash
-./scripts/tests/test_campaign_demo.sh --brief configs/examples/3_Premium_Personal_Care_Japan/brief.json
+cp configs/examples/3_Premium_Personal_Care_Japan/brief.json configs/brief.json
+./scripts/campaigns/run_video_demo.sh
 ```
 
 “The system gracefully handles missing fields, uses free translation APIs, and falls back to mock translations if offline.

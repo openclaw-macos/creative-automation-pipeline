@@ -255,7 +255,6 @@ creative-automation-pipeline/
 │   │   └── run_youtube_heygen_products_demo.sh # YouTube upload (calls step 4 if video missing)
 │   ├── tests/
 │   │   ├── test_*.sh                   # Individual test scripts
-│   │   ├── test_campaign_demo.sh       # Complete campaign workflow (for testing)
 │   │   └── run_tests_with_reports.sh   # Test runner with timestamped reports
 │   └── utils/
 │       └── fix_permissions.sh          # Utility script
@@ -269,7 +268,7 @@ creative-automation-pipeline/
 
 ## 🛠️ Script Reference
 
-### **run_images_demo.sh** – Image Generation Pipeline
+### **(Step 1) run_images_demo.sh** – Image Generation Pipeline
 ```bash
 # Image generation + compliance + legal + reporting
 ./scripts/campaigns/run_images_demo.sh [--product "Coffee Maker"] [--width 512] [--height 512]
@@ -280,35 +279,34 @@ creative-automation-pipeline/
 3. Scans campaign message for prohibited words
 4. Logs generation to SQLite database
 
-### **run_video_demo.sh** – Video Pipeline
+### **(Step 2) run_video_demo.sh** – Video Pipeline
 ```bash
 # Creates video from images (calls run_images_demo.sh if images not present)
-./scripts/campaigns/run_video_demo.sh [--campaign-message "Premium coffee experience"]
+./scripts/campaigns/run_video_demo.sh [--upload-to-drive]
 ```
-**What it does:**
-1. Checks for existing product images (calls `run_images_demo.sh` if not present)
-2. Adds text overlay with campaign message
+**What it does (automatically detects single vs multi-product from brief.json):**
+
+**Single Product Mode** (when brief.json has 1 product):
+1. Checks for existing product image (calls `run_images_demo.sh` if not present)
+2. Adds text overlay with campaign message from brief.json
 3. Adds brand logo overlay (transparent, top‑right)
 4. Generates voiceover via Voicebox TTS
 5. Creates MP4 video with background music mixing
+6. Output: `outputs/video/Product_Name_video.mp4`
 
-### **test_campaign_demo.sh** – Complete Campaign Test
-```bash
-# Complete campaign workflow test (moved to tests folder)
-./scripts/tests/test_campaign_demo.sh --brief configs/brief.json [--upload-to-drive]
-```
-**Complete workflow test:**
-1. Reads `brief.json` (products, target_region, audience)
+**Multi-Product Campaign Mode** (when brief.json has 2+ products):
+1. Reads `brief.json` (products, target_region, audience, campaign_video_message)
 2. Generates base images for all products
-3. Creates 3 aspect ratios for each product (resizing, not regenerating)
+3. Creates 3 aspect ratios for each product (1:1, 16:9, 9:16)
 4. Adds brand logo overlay to all images
-5. **NEW:** Adds text overlay with campaign message
+5. Adds text overlay with campaign message
 6. Generates voiceover from `campaign_video_message`
 7. Creates slideshow video with all product images
 8. Mixes voiceover with background music
-9. (Optional) Uploads all assets to Google Drive
+9. (Optional) Uploads all assets to Google Drive (`--upload-to-drive`)
+10. Output: Organized campaign folder at `outputs/campaign/` with slideshow video
 
-### **run_heygen_demo.sh** – Consolidated Avatar Videos
+### **(Step 3) run_heygen_demo.sh** – Consolidated Avatar Videos
 ```bash
 # Generate HeyGen avatar video from campaign brief (reads from brief.json)
 ./scripts/campaigns/run_heygen_demo.sh --brief configs/brief.json [--api-key YOUR_KEY]
@@ -321,7 +319,7 @@ creative-automation-pipeline/
 - Generates avatar script from products using AI if not provided
 - Supports real or mock translation for localization
 
-### **run_heygen_products_demo.sh** – Combined Avatar + Products Video
+### **(Step 4) run_heygen_products_demo.sh** – Combined Avatar + Products Video
 ```bash
 # Generate combined video: avatar sales pitch + products showcase
 ./scripts/campaigns/run_heygen_products_demo.sh --brief configs/brief.json
@@ -332,7 +330,7 @@ creative-automation-pipeline/
 3. Concatenates both videos using `ffmpeg`
 4. Outputs final combined video for campaign
 
-### **run_youtube_heygen_products_demo.sh** – YouTube Upload (Step 5)
+### **(Step 5) run_youtube_heygen_products_demo.sh** – YouTube Upload
 ```bash
 # Upload HeyGen avatar products video to YouTube as draft
 ./scripts/campaigns/run_youtube_heygen_products_demo.sh --brief configs/brief.json --secrets /path/to/client_secrets.json
@@ -358,11 +356,11 @@ creative-automation-pipeline/
 The five campaign scripts work in sequence, each using output from the previous step:
 
 **Sequence:**
-1. **`run_images_demo.sh`** → Generates product images from `brief.json` (logs to `image_generation` stage)
-2. **`run_video_demo.sh`** → Creates products video from images (calls step 1 if images missing; logs to `video_generation` stage)
-3. **`run_heygen_demo.sh`** → Generates avatar sales pitch video from `brief.json` (logs to `heygen_generation` stage)
-4. **`run_heygen_products_demo.sh`** → Concatenates avatar + products videos into final campaign video (logs to `combination_generation` stage)
-5. **`run_youtube_heygen_products_demo.sh`** → Uploads video to YouTube as draft (calls step 4 if video missing; logs to `youtube_upload` stage)
+1. **(Step 1) `run_images_demo.sh`** → Generates product images from `brief.json` (logs to `image_generation` stage)
+2. **(Step 2) `run_video_demo.sh`** → Creates products video from images (automatically handles single or multi-product; calls step 1 if images missing; logs to `video_generation` stage)
+3. **(Step 3) `run_heygen_demo.sh`** → Generates avatar sales pitch video from `brief.json` (logs to `heygen_generation` stage)
+4. **(Step 4) `run_heygen_products_demo.sh`** → Concatenates avatar + products videos into final campaign video (logs to `combination_generation` stage)
+5. **(Step 5) `run_youtube_heygen_products_demo.sh`** → Uploads video to YouTube as draft (calls step 4 if video missing; logs to `youtube_upload` stage)
 
 **Logging:** Each stage automatically logs to the unified SQLite database (`outputs/logs/pipeline_logs.db`) with stage-specific metadata for complete campaign auditability.
 
@@ -371,8 +369,8 @@ The five campaign scripts work in sequence, each using output from the previous 
 # Step 1: Generate product images
 ./scripts/campaigns/run_images_demo.sh --brief configs/brief.json
 
-# Step 2: Create products video (will use existing images)
-./scripts/campaigns/run_video_demo.sh --brief configs/brief.json
+# Step 2: Create products video (will use existing images, auto-detects single/multi-product)
+./scripts/campaigns/run_video_demo.sh
 
 # Step 3: Generate avatar video
 ./scripts/campaigns/run_heygen_demo.sh --brief configs/brief.json
@@ -389,6 +387,38 @@ The five campaign scripts work in sequence, each using output from the previous 
 # Test all 6 region localizations (now in tests folder)
 ./scripts/tests/test_localization_demo.sh
 ```
+
+## 📁 Outputs Folder Structure
+
+```
+outputs/
+├── logs/                    # Pipeline tracking database & reports
+│   ├── pipeline_logs.db    # SQLite database with 5-stage pipeline tracking
+│   └── run_report.json     # JSON report of latest run
+├── images/                  # Generated product images (single product mode)
+│   └── product_name.png    # Base product image
+├── video/                  # Single product video outputs
+│   ├── Product_Name_video.mp4          # Final video
+│   ├── Product_Name_text_overlay.png   # Image with text overlay
+│   ├── Product_Name_final.png          # Image with logo+text overlay
+│   └── Product_Name_voiceover.mp3      # Generated voiceover
+└── campaign/               # Multi-product campaign outputs (Step 2 multi-product mode)
+    ├── images/
+    │   ├── base/          # Original generated images for all products
+    │   ├── aspect_ratios/ # 3 aspect ratios per product (1:1, 16:9, 9:16)
+    │   ├── with_logo/     # Images with brand logo overlay
+    │   └── with_logo_and_textoverlay/ # Final images for video
+    ├── audio/
+    │   └── campaign_voiceover.mp3  # Campaign narration
+    └── video/
+        └── campaign_slideshow.mp4  # Slideshow video with all products
+```
+
+**Notes:**
+- **Single product mode** (brief.json has 1 product): Outputs go to `outputs/video/`
+- **Multi-product campaign mode** (brief.json has 2+ products): Outputs go to organized `outputs/campaign/` folder
+- All pipeline stages log to `outputs/logs/pipeline_logs.db` for complete auditability
+- Example brief.json files in `configs/examples/` demonstrate both single and multi-product configurations
 
 ---
 
