@@ -5,7 +5,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$SCRIPT_DIR/.."
+PROJECT_ROOT="$SCRIPT_DIR/../.."
 SRC_DIR="$PROJECT_ROOT/src"
 CAMPAIGNS_DIR="$PROJECT_ROOT/campaigns"
 OUTPUTS_DIR="$PROJECT_ROOT/outputs"
@@ -24,7 +24,7 @@ echo "✅ Cleaned previous outputs"
 echo ""
 echo "Step 2: Test Localization for All 6 Regions"
 echo "--------------------------------------------"
-./test_localization_demo.sh 2>&1 | tail -20
+"$SCRIPT_DIR/test_localization_demo.sh" 2>&1 | tail -20
 echo "✅ Localization tested"
 
 echo ""
@@ -57,6 +57,7 @@ for i in "${!REGIONS[@]}"; do
     
     # Create brief.json
     BRIEF_FILE="$SCRIPT_DIR/configs/brief_${CAMPAIGN_NUM}.json"
+    mkdir -p "$(dirname "$BRIEF_FILE")"
     cat > "$BRIEF_FILE" << EOF
 {
   "products": ["$PRODUCT"],
@@ -167,7 +168,7 @@ echo "2. Test with HeyGen avatar (requires API key):"
 echo "   ./scripts/campaigns/run_heygen_demo.sh --target-region \"Brazil\""
 echo ""
 echo "3. Run comprehensive test suite:"
-echo "   ./test_localization_complete.sh"
+echo "   ./scripts/tests/test_localization_complete.sh"
 echo ""
 echo "4. Check folder structure:"
 echo "   ls -la campaigns/"
