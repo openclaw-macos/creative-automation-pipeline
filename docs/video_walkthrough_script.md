@@ -90,7 +90,23 @@ cd creative-automation-pipeline
 
 ---
 
-## (2:30 - 3:00) EXAMPLE CAMPAIGNS & LOCALIZATION
+## (2:30 - 3:00) COMPREHENSIVE TESTING
+
+> **[Visual: Navigate to docs/TEST_STRATEGY.md]**
+
+**Speaker:**
+"To test the application comprehensively, refer to the detailed test strategy document. Go to `docs/TEST_STRATEGY.md` and execute the listed commands in the following sections in the same order:
+
+1. **Test Environment Setup section** - Creates a clean test folder and verifies basic structure.
+2. **Execution Guide section** - Runs all utility and campaign tests sequentially.
+
+"This systematic approach validates all pipeline components, ensures localization works across six target regions, and generates test reports for audit and debugging.
+
+"The test strategy includes simulation support for when external dependencies are unavailable, making it easy to validate the pipeline logic even without ComfyUI, Voicebox, or HeyGen APIs."
+
+---
+
+## (3:00 - 3:30) EXAMPLE CAMPAIGNS & LOCALIZATION
 
 > **[Visual: Navigate to `configs/examples/`]**
 
@@ -118,7 +134,7 @@ cp configs/examples/3_Premium_Personal_Care_Japan/brief.json configs/brief.json
 
 ---
 
-## (3:00 - 3:15) CLOSING
+## (3:30 - 3:45) CLOSING
 
 > **[Visual: Return to GitHub repo, highlight the README]**
 

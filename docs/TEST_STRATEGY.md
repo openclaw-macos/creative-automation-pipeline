@@ -119,6 +119,9 @@ source scripts/timestamp_utils.sh; get_timestamp_no_seconds
 ./src/install_deps.sh
 ./scripts/organize_outputs.sh
 
+# Ensure Python can find localization module
+export PYTHONPATH=$PYTHONPATH:$(pwd)/src
+
 # 5‑10: Localization and test suites
 ./scripts/tests/test_localization_demo.sh
 ./scripts/tests/test_localization_complete.sh
@@ -160,8 +163,9 @@ Run sequentially using the **Smart Kitchen Essentials** campaign:
 
 | Issue | Solution |
 |-------|----------|
-| **"Permission denied"** on scripts | Run `./scripts/utils/fix_permissions.sh` |
+| **"Permission denied"** on scripts | Run `./scripts/utils/fix_permissions.sh` (recommended) or run `chmod +x` on the specific script |
 | **Python import errors** | Run `./src/install_deps.sh` |
+| **"ModuleNotFoundError: No module named 'localization'"** | Add src directory to Python path: `export PYTHONPATH=$PYTHONPATH:$(pwd)/src` then run the test again |
 | **"pip: command not found"** or **"pip list shows no packages"** | Use `pip3` instead of `pip`; add alias `alias pip='pip3'` to `~/.zshrc` and `source ~/.zshrc` |
 | **PATH warnings** during package installation | Add Python bin to PATH: `echo 'export PATH="/Users/youee-mac/Library/Python/3.9/bin:\$PATH"' >> ~/.zshrc && source ~/.zshrc` |
 | **ComfyUI/Voicebox connection failed** | Add `--simulate` flag to campaign scripts |
