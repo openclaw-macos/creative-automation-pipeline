@@ -4,4 +4,7 @@
   "target_region": "USA",
   "audience": "Tech-savvy home cooks 25-45",
   "campaign_message": "Start your day smarter with our premium coffee maker"
+  // Optional fields for YouTube upload:
+  // "youtube_title": "Smart Coffee Maker & Air Fryer - Kitchen Revolution!",
+  // "youtube_thumbnail": "/path/to/custom/thumbnail.jpg"
 }

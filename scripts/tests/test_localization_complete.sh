@@ -5,7 +5,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC_DIR="$SCRIPT_DIR/src"
+PROJECT_ROOT="$SCRIPT_DIR/.."
+SRC_DIR="$PROJECT_ROOT/src"
 
 echo "============================================================"
 echo "COMPREHENSIVE LOCALIZATION TEST"
@@ -144,7 +145,7 @@ print('\n✅ TEST 3 PASSED: VideoPipeline integrates localization')
 
 # Note: Full video generation test requires ComfyUI and Voicebox servers
 print('\nNote: Full video generation test requires ComfyUI and Voicebox servers.')
-print('      To test full pipeline, run: ./run_video_demo.sh --target-region \"Japan\"')
+print('      To test full pipeline, run: ./scripts/campaigns/run_video_demo.sh --target-region \"Japan\"')
 "
 
 echo ""
@@ -172,7 +173,7 @@ for region in ['USA', 'Japan']:
 
 print('\n✅ TEST 4 PASSED: HeyGen integration ready for localization')
 print('\nNote: Actual HeyGen API test requires API key.')
-print('      To test: ./run_heygen_demo.sh --target-region \"Brazil\"')
+print('      To test: ./scripts/campaigns/run_heygen_demo.sh --target-region \"Brazil\"')
 "
 
 echo ""
@@ -193,14 +194,14 @@ echo "   - Automatic brief.json copying"
 echo ""
 echo "✅ Integration with existing pipeline:"
 echo "   - comfyui_generate.py accepts --target-region parameter"
-echo "   - run_video_demo.sh supports --target-region"
-echo "   - run_heygen_demo.sh supports --target-region"
-echo "   - New run_localization_demo.sh for testing all regions"
+echo "   - scripts/campaigns/run_video_demo.sh supports --target-region"
+echo "   - scripts/campaigns/run_heygen_demo.sh supports --target-region"
+echo "   - New test_localization_demo.sh for testing all regions"
 echo ""
 echo "📋 Next steps for user verification:"
 echo "   1. Swap configs/brief.json with different target_region values"
-echo "   2. Run: ./run_video_demo.sh --target-region \"Japan\""
-echo "   3. Run: ./run_heygen_demo.sh --target-region \"Brazil\""
+echo "   2. Run: ./scripts/campaigns/run_video_demo.sh --target-region \"Japan\""
+echo "   3. Run: ./scripts/campaigns/run_heygen_demo.sh --target-region \"Brazil\""
 echo "   4. Check outputs for localized text and audio"
 echo ""
 echo "🔧 To use real translation (instead of mock):"

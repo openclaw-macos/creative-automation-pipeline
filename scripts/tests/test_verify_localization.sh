@@ -5,34 +5,36 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC_DIR="$SCRIPT_DIR/src"
+PROJECT_ROOT="$SCRIPT_DIR/.."
+SRC_DIR="$PROJECT_ROOT/src"
 
 echo "============================================================"
 echo "LOCALIZATION VERIFICATION SCRIPT"
 echo "============================================================"
 echo ""
 
-# Test 1: Check script executability
+# Test 1: Check script executability (new organization)
 echo "1. Checking script executability..."
 SCRIPTS=(
-    "run_demo.sh"
-    "run_video_demo.sh"
-    "run_heygen_demo.sh"
-    "run_localization_demo.sh"
-    "test_localization_complete.sh"
-    "demo_complete_workflow.sh"
+    "$PROJECT_ROOT/scripts/campaigns/run_images_demo.sh"
+    "$PROJECT_ROOT/scripts/campaigns/run_video_demo.sh"
+    "$PROJECT_ROOT/scripts/campaigns/run_heygen_demo.sh"
+    "$PROJECT_ROOT/scripts/tests/test_localization_demo.sh"
+    "$PROJECT_ROOT/scripts/tests/test_localization_complete.sh"
+    "$PROJECT_ROOT/scripts/tests/test_complete_workflow.sh"
 )
 
-for script in "${SCRIPTS[@]}"; do
-    if [ -f "$SCRIPT_DIR/$script" ]; then
-        if [ -x "$SCRIPT_DIR/$script" ]; then
-            echo "  ✅ $script (exists and executable)"
+for script_path in "${SCRIPTS[@]}"; do
+    script_name=$(basename "$script_path")
+    if [ -f "$script_path" ]; then
+        if [ -x "$script_path" ]; then
+            echo "  ✅ $script_name (exists and executable)"
         else
-            echo "  ⚠️  $script (exists but not executable, fixing...)"
-            chmod +x "$SCRIPT_DIR/$script"
+            echo "  ⚠️  $script_name (exists but not executable, fixing...)"
+            chmod +x "$script_path"
         fi
     else
-        echo "  ❌ $script (missing)"
+        echo "  ❌ $script_name (missing at: $script_path)"
     fi
 done
 
@@ -166,16 +168,16 @@ echo "If all tests passed:"
 echo "  ✅ Localization is fully integrated and working"
 echo ""
 echo "To test HeyGen avatar localization:"
-echo "  ./run_heygen_demo.sh --target-region \"Japan\""
+echo "  ./scripts/campaigns/run_heygen_demo.sh --target-region \"Japan\""
 echo ""
 echo "To test video pipeline localization:"
-echo "  ./run_video_demo.sh --target-region \"Brazil\""
+echo "  ./scripts/campaigns/run_video_demo.sh --target-region \"Brazil\""
 echo ""
 echo "To run comprehensive test suite:"
-echo "  ./test_localization_complete.sh"
+echo "  ./scripts/tests/test_localization_complete.sh"
 echo ""
 echo "To see all available scripts:"
-echo "  ls -la run_*.sh demo_*.sh test_*.sh"
+echo "  ls -la scripts/campaigns/*.sh scripts/tests/*.sh"
 echo ""
 echo "============================================================"
 echo "VERIFICATION COMPLETE"

@@ -1,0 +1,21 @@
+{
+  "region_language_mapping": {
+    "USA": "en",
+    "European Union (Germany/France)": "de",
+    "Japan": "ja",
+    "UAE / Saudi Arabia": "ar",
+    "Brazil": "pt",
+    "Scandinavia (Sweden/Denmark)": "sv"
+  },
+  "language_voice_mapping": {
+    "en": "en-US",
+    "de": "de-DE",
+    "ja": "ja-JP",
+    "ar": "ar-SA",
+    "pt": "pt-BR",
+    "sv": "sv-SE"
+  },
+  "description": "Centralized region-to-language mapping for Creative Automation Pipeline. Used by video_demo.sh, heygen_demo.sh, and other scripts that need language localization.",
+  "last_updated": "2026-03-25",
+  "version": "1.0"
+}

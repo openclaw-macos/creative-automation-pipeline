@@ -4,17 +4,18 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR/.."
 
 echo "=== Testing Campaign Fixes ==="
 echo ""
 
 # Make scripts executable
 echo "1. Making scripts executable..."
-chmod +x run_campaign_demo.sh 2>/dev/null || true
-chmod +x run_demo.sh 2>/dev/null || true
-chmod +x run_video_demo.sh 2>/dev/null || true
-chmod +x src/install_deps.sh 2>/dev/null || true
-chmod +x src/aspect_ratio.py 2>/dev/null || true
+chmod +x $PROJECT_ROOT/scripts/campaigns/run_campaign_demo.sh 2>/dev/null || true
+chmod +x $PROJECT_ROOT/scripts/campaigns/run_images_demo.sh 2>/dev/null || true
+chmod +x $PROJECT_ROOT/scripts/campaigns/run_video_demo.sh 2>/dev/null || true
+chmod +x $PROJECT_ROOT/src/install_deps.sh 2>/dev/null || true
+chmod +x $PROJECT_ROOT/src/aspect_ratio.py 2>/dev/null || true
 
 echo "✅ Scripts made executable"
 
@@ -23,7 +24,7 @@ echo ""
 echo "2. Testing Python imports..."
 python3 -c "
 import sys
-sys.path.append('$SCRIPT_DIR/src')
+sys.path.append('$PROJECT_ROOT/src')
 
 try:
     from aspect_ratio import ASPECT_RATIOS, DIMENSIONS
@@ -57,7 +58,7 @@ try:
     import json
     
     # Check brand_config.json
-    with open('$SCRIPT_DIR/configs/brand_config.json', 'r') as f:
+    with open('$PROJECT_ROOT/configs/brand_config.json', 'r') as f:
         config = json.load(f)
     
     logo_path = config.get('logo_path', '')
@@ -95,7 +96,7 @@ import sys
 import json
 sys.path.append('$SCRIPT_DIR/src')
 
-with open('$SCRIPT_DIR/configs/brief.json', 'r') as f:
+with open('$PROJECT_ROOT/configs/brief.json', 'r') as f:
     brief = json.load(f)
 
 print('Brief structure:')
@@ -130,13 +131,13 @@ echo ""
 echo "=== Summary ==="
 echo ""
 echo "To run the complete campaign demo:"
-echo "  ./run_campaign_demo.sh"
+echo "  ./scripts/campaigns/run_campaign_demo.sh"
 echo ""
 echo "To test aspect ratio generation:"
-echo "  python3 src/aspect_ratio.py --image /path/to/test.jpg --output-dir ./test_output"
+echo "  python3 $PROJECT_ROOT/src/aspect_ratio.py --image /path/to/test.jpg --output-dir ./test_output"
 echo ""
 echo "To install dependencies:"
-echo "  ./src/install_deps.sh"
+echo "  $PROJECT_ROOT/src/install_deps.sh"
 echo ""
 echo "Note: The campaign demo requires:"
 echo "  - ComfyUI server running on http://127.0.0.1:8188"

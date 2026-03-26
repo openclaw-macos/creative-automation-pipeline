@@ -5,9 +5,10 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC_DIR="$SCRIPT_DIR/src"
-CAMPAIGNS_DIR="$SCRIPT_DIR/campaigns"
-OUTPUTS_DIR="$SCRIPT_DIR/outputs"
+PROJECT_ROOT="$SCRIPT_DIR/.."
+SRC_DIR="$PROJECT_ROOT/src"
+CAMPAIGNS_DIR="$PROJECT_ROOT/campaigns"
+OUTPUTS_DIR="$PROJECT_ROOT/outputs"
 
 echo "============================================================"
 echo "FDE TAKE-HOME ASSIGNMENT - COMPLETE WORKFLOW DEMONSTRATION"
@@ -23,7 +24,7 @@ echo "✅ Cleaned previous outputs"
 echo ""
 echo "Step 2: Test Localization for All 6 Regions"
 echo "--------------------------------------------"
-./run_localization_demo.sh 2>&1 | tail -20
+./test_localization_demo.sh 2>&1 | tail -20
 echo "✅ Localization tested"
 
 echo ""
@@ -118,7 +119,7 @@ for i in "${!REGIONS[@]}"; do
     REGION="${REGIONS[$i]}"
     CAMPAIGN_NUM=$((i+1))
     echo "  Campaign $CAMPAIGN_NUM ($REGION):"
-    echo "    ./run_video_demo.sh --target-region \"$REGION\""
+    echo "    ./scripts/campaigns/run_video_demo.sh --target-region \"$REGION\""
 done
 
 echo ""
@@ -131,7 +132,7 @@ for i in "${!REGIONS[@]}"; do
     REGION="${REGIONS[$i]}"
     CAMPAIGN_NUM=$((i+1))
     echo "  Campaign $CAMPAIGN_NUM ($REGION):"
-    echo "    ./run_heygen_demo.sh --target-region \"$REGION\""
+    echo "    ./scripts/campaigns/run_heygen_demo.sh --target-region \"$REGION\""
 done
 
 echo ""
@@ -160,10 +161,10 @@ echo "NEXT STEPS FOR USER VERIFICATION"
 echo "============================================================"
 echo ""
 echo "1. Test with actual image generation (requires ComfyUI):"
-echo "   ./run_video_demo.sh --target-region \"Japan\""
+echo "   ./scripts/campaigns/run_video_demo.sh --target-region \"Japan\""
 echo ""
 echo "2. Test with HeyGen avatar (requires API key):"
-echo "   ./run_heygen_demo.sh --target-region \"Brazil\""
+echo "   ./scripts/campaigns/run_heygen_demo.sh --target-region \"Brazil\""
 echo ""
 echo "3. Run comprehensive test suite:"
 echo "   ./test_localization_complete.sh"
@@ -174,7 +175,7 @@ echo ""
 echo "5. Verify localization works:"
 echo "   python3 -c \"
 import sys
-sys.path.append('src')
+sys.path.append('$PROJECT_ROOT/src')
 from localization import Localization
 loc = Localization(use_mock=True)
 text = 'Start your day smarter with our kitchen essentials'

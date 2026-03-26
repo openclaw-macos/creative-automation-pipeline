@@ -35,13 +35,13 @@ class HeyGenIntegration:
         self.api_key = api_key
         self.base_url = base_url.rstrip('/')
         self.headers = {
-            "X-Api-Key": api_key,
+            "x-api-key": api_key,  # HeyGen v2 requires lowercase header
             "Content-Type": "application/json"
         }
         
         # Default avatar settings (can be overridden)
-        self.default_avatar_id = "anna_costume1_cameraA"  # Example avatar
-        self.default_voice_id = "1bd001e7e50f421d891986aad5158bc8"  # Example voice ID
+        self.default_avatar_id = "00b82a2d3bc54ae1aa692686411d45f5"  # Digital Twin: Agent 42 from isFutureNOW
+        self.default_voice_id = "8a2bdb430871445594dafc3488c54574"  # Voice: RaviK Pullet
         self.default_scene = "default"  # Default scene
         
         # Cache for API responses
@@ -57,7 +57,7 @@ class HeyGenIntegration:
             return self._avatars_cache
             
         try:
-            url = f"{self.base_url}/v1/avatars"
+            url = f"{self.base_url}/v2/avatars"
             response = requests.get(url, headers=self.headers, timeout=30)
             response.raise_for_status()
             data = response.json()
@@ -70,11 +70,11 @@ class HeyGenIntegration:
             return self._avatars_cache
         except Exception as e:
             log_warning(f"Failed to fetch avatars from HeyGen: {e}")
-            # Return default avatars list
+            # Return default avatars list (including digital twin)
             return [
+                {"avatar_id": "00b82a2d3bc54ae1aa692686411d45f5", "name": "Agent 42 from isFutureNOW (Digital Twin)"},
                 {"avatar_id": "anna_costume1_cameraA", "name": "Anna (Professional)"},
                 {"avatar_id": "lucas_costume1_cameraA", "name": "Lucas (Business)"},
-                {"avatar_id": "emma_costume1_cameraA", "name": "Emma (Casual)"},
             ]
     
     def get_available_voices(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
@@ -86,7 +86,7 @@ class HeyGenIntegration:
             return self._voices_cache
             
         try:
-            url = f"{self.base_url}/v1/voices"
+            url = f"{self.base_url}/v2/voices"
             response = requests.get(url, headers=self.headers, timeout=30)
             response.raise_for_status()
             data = response.json()
@@ -99,10 +99,10 @@ class HeyGenIntegration:
             return self._voices_cache
         except Exception as e:
             log_warning(f"Failed to fetch voices from HeyGen: {e}")
-            # Return default voices list
+            # Return default voices list (including RaviK Pullet)
             return [
+                {"voice_id": "8a2bdb430871445594dafc3488c54574", "name": "RaviK Pullet"},
                 {"voice_id": "1bd001e7e50f421d891986aad5158bc8", "name": "English Female 1"},
-                {"voice_id": "2ac76e7a8b6d4c5f9e8f7a6b5c4d3e2f", "name": "English Male 1"},
             ]
     
     def find_voicebox_voice(self) -> Optional[str]:
@@ -131,6 +131,28 @@ class HeyGenIntegration:
         
         return None
     
+    def find_digital_twin_avatar(self) -> Optional[str]:
+        """
+        Find digital twin avatar by name 'Agent 42 from isFutureNOW' or ID.
+        Returns avatar_id if found, None otherwise.
+        """
+        try:
+            avatars = self.get_available_avatars()
+            for avatar in avatars:
+                avatar_name = avatar.get("name", "").lower()
+                avatar_id = avatar.get("avatar_id", "")
+                
+                # Check for Agent 42 digital twin
+                if ("agent 42" in avatar_name or "agent42" in avatar_name or 
+                    avatar_id == "00b82a2d3bc54ae1aa692686411d45f5"):
+                    return avatar_id
+            
+            # If not found, return default digital twin ID
+            return "00b82a2d3bc54ae1aa692686411d45f5"
+        except Exception as e:
+            log_warning(f"Digital twin detection failed: {e}")
+            return "00b82a2d3bc54ae1aa692686411d45f5"  # Fallback to provided ID
+    
     def create_avatar_video(
         self,
         script: str,
@@ -158,20 +180,21 @@ class HeyGenIntegration:
         """
         # Use defaults if not specified
         if avatar_id is None:
-            avatar_id = self.default_avatar_id
+            avatar_id = self.find_digital_twin_avatar()
+            log_info(f"Using digital twin avatar: {avatar_id}")
             
         if voice_id is None:
             # Try to find Voicebox voice
             voicebox_voice = self.find_voicebox_voice()
             if voicebox_voice:
                 voice_id = voicebox_voice
-                log_info(f"Using Voicebox-compatible voice: {voice_id}")
+                log_info(f"Using Voicebox voice: {voice_id}")
             else:
-                voice_id = self.default_voice_id
-                log_info(f"Using default voice: {voice_id}")
+                voice_id = self.default_voice_id  # Will use RaviK Pullet
+                log_info(f"Using configured voice: RaviK Pullet ({voice_id})")
         
         # Prepare API request
-        url = f"{self.base_url}/v1/video/generate"
+        url = f"{self.base_url}/v2/video/generate"
         
         # Build request payload
         payload = {
@@ -263,7 +286,7 @@ class HeyGenIntegration:
             Dictionary with success status and video path
         """
         max_attempts = 60  # 5 minutes max
-        url = f"{self.base_url}/v1/video/{task_id}"
+        url = f"{self.base_url}/v2/video/{task_id}"
         
         log_info(f"Polling for video completion (max {max_attempts * poll_interval}s)...")
         
@@ -438,20 +461,27 @@ def main():
     # Test available avatars and voices
     log_info("\nAvailable avatars:")
     avatars = heygen.get_available_avatars()
-    for avatar in avatars[:3]:  # Show first 3
+    for avatar in avatars:  # Show all avatars to verify digital twin
         log_info(f"  - {avatar.get('name', 'Unknown')} (ID: {avatar.get('avatar_id', 'N/A')})")
     
     log_info("\nAvailable voices:")
     voices = heygen.get_available_voices()
-    for voice in voices[:3]:  # Show first 3
+    for voice in voices:  # Show all voices to verify RaviK Pullet
         log_info(f"  - {voice.get('name', 'Unknown')} (ID: {voice.get('voice_id', 'N/A')})")
+    
+    # Try to find digital twin
+    digital_twin_id = heygen.find_digital_twin_avatar()
+    if digital_twin_id:
+        log_success(f"\nFound digital twin avatar: {digital_twin_id}")
+    else:
+        log_warning(f"\nDigital twin not found, using default ID")
     
     # Try to find Voicebox voice
     voicebox_voice = heygen.find_voicebox_voice()
     if voicebox_voice:
-        log_success(f"\nFound Voicebox-compatible voice: {voicebox_voice}")
+        log_info(f"Found Voicebox voice: {voicebox_voice}")
     else:
-        log_warning(f"\nNo Voicebox-compatible voice found, using default")
+        log_info(f"No Voicebox voice found, using RaviK Pullet")
     
     # Generate video with local model planning
     log_info(f"\nGenerating avatar video with local model '{args.local_model}'...")

@@ -69,8 +69,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_SERVER = "http://127.0.0.1:8188"
 DEFAULT_WORKFLOW = os.path.join(SCRIPT_DIR, "../configs/default_workflow.json")
 DEFAULT_BRAND_CONFIG = os.path.join(SCRIPT_DIR, "../configs/brand_config.json")
-DEFAULT_DB_PATH = os.path.join(SCRIPT_DIR, "../outputs/pipeline_logs.db")
-DEFAULT_JSON_REPORT = os.path.join(SCRIPT_DIR, "../outputs/run_report.json")
+DEFAULT_DB_PATH = os.path.join(SCRIPT_DIR, "../outputs/logs/pipeline_logs.db")
+DEFAULT_JSON_REPORT = os.path.join(SCRIPT_DIR, "../outputs/logs/run_report.json")
 DEFAULT_SERVICE_ACCOUNT = "~/google_serviceaccount/service_account.json"
 DEFAULT_DRIVE_FOLDER_ID = "1XdhY-6U624J_ml-MulmMfhQ5zrn9ja1H"  # creative-automation-pipeline folder
 
@@ -490,6 +490,36 @@ def main():
             log_info(f"Video: {video_results.get('video_path')}")
         else:
             log_warning(f"Video pipeline failed: {video_results.get('reason', 'Unknown error')}")
+    
+    # Log video generation if enabled
+    if args.video and not args.no_report and COMPLIANCE_MODULES_AVAILABLE:
+        try:
+            # Extract brief name from brief path if provided
+            brief_name = None
+            if args.brief and os.path.exists(args.brief):
+                brief_name = os.path.basename(args.brief)
+            
+            reporter = PipelineReporter(db_path=DEFAULT_DB_PATH, json_log_path=DEFAULT_JSON_REPORT)
+            status = "success" if video_results.get("success") else "failed"
+            video_log_id = reporter.log_video_generation(
+                product=args.product,
+                brief_name=brief_name,
+                video_path=video_results.get("video_path") if video_results.get("success") else None,
+                duration_ms=generation_time_ms,  # Total generation time includes image generation
+                width=args.width,
+                height=args.height,
+                status=status,
+                additional_info={
+                    "text_overlay_path": video_results.get("text_overlay_path"),
+                    "final_image_path": video_results.get("final_image_path"),
+                    "audio_path": video_results.get("audio_path"),
+                    "generation_time_ms": generation_time_ms,
+                    "reason": video_results.get("reason") if not video_results.get("success") else None
+                }
+            )
+            log_success(f"Logged video generation with ID: {video_log_id} (status: {status})")
+        except Exception as e:
+            log_warning(f"Failed to log video generation: {e}")
     
     # Reporting (if not disabled)
     if not args.no_report and COMPLIANCE_MODULES_AVAILABLE:

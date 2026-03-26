@@ -1,13 +1,15 @@
 #!/bin/bash
-# Demo script for Creative Automation Pipeline with Video Generation
+# Video Generation Pipeline - Creates video from product images
+# Calls run_images_demo.sh if images are not present
 # This script runs a test generation with full compliance, reporting, and video pipeline
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC_DIR="$SCRIPT_DIR/src"
-OUTPUTS_DIR="$SCRIPT_DIR/outputs"
-WORKFLOW="$SCRIPT_DIR/configs/default_workflow.json"
+PROJECT_ROOT="$SCRIPT_DIR/../.."
+SRC_DIR="$PROJECT_ROOT/src"
+OUTPUTS_DIR="$PROJECT_ROOT/outputs"
+WORKFLOW="$PROJECT_ROOT/configs/default_workflow.json"
 
 # Default target region
 TARGET_REGION="USA"
@@ -80,13 +82,26 @@ fi
 
 echo ""
 
+# Check if product images exist (part of campaign sequence)
+EXPECTED_IMAGE="$OUTPUTS_DIR/images/coffee_maker.png"
+if [ ! -f "$EXPECTED_IMAGE" ]; then
+    echo "⚠️  Product image not found: $EXPECTED_IMAGE"
+    echo "   This script is part of the campaign sequence:"
+    echo "   1. First run: ./scripts/campaigns/run_images_demo.sh"
+    echo "   2. Then run: ./scripts/campaigns/run_video_demo.sh"
+    echo ""
+    echo "   Would you like to continue anyway? (Image will be generated)"
+    echo "   Press Enter to continue, or Ctrl+C to run images demo first."
+    read -r
+fi
+
 # Run the pipeline with compliance checks and video generation
 echo "Running pipeline with compliance checks and video generation..."
 echo "=============================================================="
 
 # Use virtual environment Python if available
-if [ -f "./venv/bin/python" ]; then
-    PYTHON_EXEC="./venv/bin/python"
+if [ -f "$PROJECT_ROOT/venv/bin/python" ]; then
+    PYTHON_EXEC="$PROJECT_ROOT/venv/bin/python"
 else
     PYTHON_EXEC="python3"
 fi
@@ -127,11 +142,11 @@ echo "  - Text Overlay: $OUTPUTS_DIR/video/Coffee_Maker_text_overlay.png"
 echo "  - Final Image (with logo): $OUTPUTS_DIR/video/Coffee_Maker_final.png"
 echo "  - Voiceover: $OUTPUTS_DIR/video/Coffee_Maker_voiceover.mp3"
 echo "  - Video: $OUTPUTS_DIR/video/Coffee_Maker_video.mp4"
-echo "  - Database: $SCRIPT_DIR/outputs/pipeline_logs.db"
-echo "  - JSON Report: $SCRIPT_DIR/outputs/run_report.json"
+echo "  - Database: $PROJECT_ROOT/outputs/logs/pipeline_logs.db"
+echo "  - JSON Report: $PROJECT_ROOT/outputs/logs/run_report.json"
 echo ""
 echo "To view the database, run:"
-echo "  sqlite3 $SCRIPT_DIR/outputs/pipeline_logs.db \"SELECT * FROM generation_logs ORDER BY timestamp DESC LIMIT 5;\""
+echo "  sqlite3 $PROJECT_ROOT/outputs/logs/pipeline_logs.db \"SELECT * FROM generation_logs ORDER BY timestamp DESC LIMIT 5;\""
 echo ""
 echo "To play the video, run:"
 echo "  open $OUTPUTS_DIR/video/Coffee_Maker_video.mp4"

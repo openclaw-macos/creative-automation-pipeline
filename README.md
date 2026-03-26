@@ -173,11 +173,14 @@ git pull origin main
 - **Prohibited‑word scanning** – Case‑insensitive whole‑word matching
 - **Region‑specific legal checks** – Configurable by target market
 
-### 📊 **Full Auditability & Reporting**
-- **SQLite database** – Structured logs for analytics
-- **JSON run reports** – Human‑readable execution logs
-- **Generation metadata** – Product, dimensions, compliance status, timing
-- **Query API** – Filter by date, product, region, compliance status
+### 📊 **Enhanced Full Auditability & Reporting**
+- **Unified SQLite database** – Structured logs for all 5 pipeline stages in `outputs/logs/pipeline_logs.db`
+- **Enhanced schema** – Supports `stage` column with values: `image_generation`, `video_generation`, `heygen_generation`, `combination_generation`, `youtube_upload`
+- **Complete campaign tracking** – Logs every step from image generation to YouTube upload
+- **JSON run reports** – Human‑readable execution logs in `outputs/logs/run_report.json`
+- **Generation metadata** – Product, dimensions, compliance status, timing, stage-specific data
+- **Query API** – Filter by date, product, region, compliance status, or pipeline stage
+- **Performance metrics** – Generation time, file sizes, compliance scores across all stages
 
 ### 🔊 **Console Output & Logging**
 - **Structured logging** – Unified logger with timestamps, levels, and emoji support
@@ -213,6 +216,8 @@ Six ready‑to‑run campaign briefs are included in `configs/examples/` coverin
 
 **Note:** Region‑to‑language mapping is hardcoded in `src/localization.py`; `target_language` in brief.json is optional. Missing fields (e.g., `campaign_video_message`) fall back gracefully.
 
+**Campaign Folder Naming Standard:** New campaigns use timestamped folder names: `campaign_{number}_{product_type}_{region}_{timestamp}` (e.g., `campaign_2_Sustainable_Home_Care_Europe_20260324_143914`). Example campaigns above use legacy numbering for compatibility.
+
 ---
 
 ## 📁 Repository Structure
@@ -236,17 +241,24 @@ creative-automation-pipeline/
 │   ├── google_drive_integration.py
 │   ├── heygen_integration.py
 │   ├── campaign_manager.py    # Campaign folder organization
+│   ├── timestamp_utils.py     # Timestamp utilities for campaigns and reports
+│   ├── test_report_generator.py # Test report generation
 │   ├── brand_compliance.py    # Brand compliance checks
 │   ├── legal_guardrail.py     # Legal word scanning
 │   └── reporting.py           # Audit logging
-├── scripts/ (or root)
-│   ├── run_demo.sh            # Image + compliance + legal + reporting
-│   ├── run_video_demo.sh      # Adds text/logo overlays + voiceover + MP4
-│   ├── run_campaign_demo.sh   # Complete campaign workflow
-│   ├── run_heygen_demo.sh     # HeyGen avatar generation
-│   ├── run_heygen_from_brief.sh # HeyGen from brief.json
-│   ├── run_localization_demo.sh # Localization testing
-│   └── scripts/tests/test_*.sh   # Verification scripts
+├── scripts/
+│   ├── campaigns/
+│   │   ├── run_images_demo.sh         # Image generation + compliance + legal + reporting
+│   │   ├── run_video_demo.sh          # Creates video from images (calls images demo if needed)
+│   │   ├── run_heygen_demo.sh         # Consolidated HeyGen avatar generation from brief
+│   │   ├── run_heygen_products_demo.sh # Combined avatar + products video
+│   │   └── run_youtube_heygen_products_demo.sh # YouTube upload (calls step 4 if video missing)
+│   ├── tests/
+│   │   ├── test_*.sh                   # Individual test scripts
+│   │   ├── test_campaign_demo.sh       # Complete campaign workflow (for testing)
+│   │   └── run_tests_with_reports.sh   # Test runner with timestamped reports
+│   └── utils/
+│       └── fix_permissions.sh          # Utility script
 └── docs/
     ├── demo_script.md         # 3‑minute video script (proof‑of‑concept demo)
     ├── video_interview_script.md # 3‑minute interview walk‑through
@@ -257,10 +269,10 @@ creative-automation-pipeline/
 
 ## 🛠️ Script Reference
 
-### **run_demo.sh** – Basic Pipeline
+### **run_images_demo.sh** – Image Generation Pipeline
 ```bash
 # Image generation + compliance + legal + reporting
-./run_demo.sh [--product "Coffee Maker"] [--width 512] [--height 512]
+./scripts/campaigns/run_images_demo.sh [--product "Coffee Maker"] [--width 512] [--height 512]
 ```
 **What it does:**
 1. Generates product image via ComfyUI
@@ -270,51 +282,112 @@ creative-automation-pipeline/
 
 ### **run_video_demo.sh** – Video Pipeline
 ```bash
-# Adds text/logo overlays + voiceover + MP4 creation
-./run_video_demo.sh [--campaign-message "Premium coffee experience"]
+# Creates video from images (calls run_images_demo.sh if images not present)
+./scripts/campaigns/run_video_demo.sh [--campaign-message "Premium coffee experience"]
 ```
-**What it adds:**
-1. Text overlay with campaign message
-2. Brand logo overlay (transparent, top‑right)
-3. Voiceover generation via Voicebox TTS
-4. MP4 video with background music mixing
+**What it does:**
+1. Checks for existing product images (calls `run_images_demo.sh` if not present)
+2. Adds text overlay with campaign message
+3. Adds brand logo overlay (transparent, top‑right)
+4. Generates voiceover via Voicebox TTS
+5. Creates MP4 video with background music mixing
 
-### **run_campaign_demo.sh** – Complete Campaign
+### **test_campaign_demo.sh** – Complete Campaign Test
 ```bash
-# Full campaign workflow (recommended)
-./run_campaign_demo.sh --brief configs/brief.json [--upload-to-drive]
+# Complete campaign workflow test (moved to tests folder)
+./scripts/tests/test_campaign_demo.sh --brief configs/brief.json [--upload-to-drive]
 ```
-**Complete workflow:**
+**Complete workflow test:**
 1. Reads `brief.json` (products, target_region, audience)
 2. Generates base images for all products
 3. Creates 3 aspect ratios for each product (resizing, not regenerating)
 4. Adds brand logo overlay to all images
-5. Generates voiceover from `campaign_video_message`
-6. Creates slideshow video with all product images
-7. Mixes voiceover with background music
-8. (Optional) Uploads all assets to Google Drive
+5. **NEW:** Adds text overlay with campaign message
+6. Generates voiceover from `campaign_video_message`
+7. Creates slideshow video with all product images
+8. Mixes voiceover with background music
+9. (Optional) Uploads all assets to Google Drive
 
-### **run_heygen_demo.sh** – Avatar Videos
+### **run_heygen_demo.sh** – Consolidated Avatar Videos
 ```bash
-# HeyGen avatar generation
-./run_heygen_demo.sh --api-key YOUR_KEY --script "Campaign message"
+# Generate HeyGen avatar video from campaign brief (reads from brief.json)
+./scripts/campaigns/run_heygen_demo.sh --brief configs/brief.json [--api-key YOUR_KEY]
 ```
 **Features:**
-- Uses local Ollama models for script planning
-- Searches for Voicebox‑compatible voices
-- Generates professional avatar video
-- Addresses all campaign products in single video
+- Reads `brief.json` with optional `avatar_script` field
+- Uses `regions-language.json` for language mapping
+- Uses digital twin: Agent 42 from isFutureNOW
+- Uses voice: RaviK Pullet (or auto-detected)
+- Generates avatar script from products using AI if not provided
+- Supports real or mock translation for localization
+
+### **run_heygen_products_demo.sh** – Combined Avatar + Products Video
+```bash
+# Generate combined video: avatar sales pitch + products showcase
+./scripts/campaigns/run_heygen_products_demo.sh --brief configs/brief.json
+```
+**Workflow:**
+1. Generates HeyGen avatar video (or uses existing)
+2. Generates products video via `run_video_demo.sh` (or uses existing)
+3. Concatenates both videos using `ffmpeg`
+4. Outputs final combined video for campaign
+
+### **run_youtube_heygen_products_demo.sh** – YouTube Upload (Step 5)
+```bash
+# Upload HeyGen avatar products video to YouTube as draft
+./scripts/campaigns/run_youtube_heygen_products_demo.sh --brief configs/brief.json --secrets /path/to/client_secrets.json
+```
+**Workflow:**
+1. Checks for combined video (calls `run_heygen_products_demo.sh` if not present)
+2. Generates catchy YouTube title using AI (or uses `youtube_title` from brief)
+3. Creates YouTube thumbnail using AI (or uses `youtube_thumbnail` from brief)
+4. Uploads video to YouTube as private (draft) using OAuth 2.0
+5. Saves upload result with video ID and status
+
+**Required:**
+- OAuth `client_secrets.json` from Google Cloud Console
+- YouTube Data API v3 enabled in Google Cloud project
+- User authorization via browser (first time only)
+
+**Optional flags:**
+- `--simulate` - Test without actual YouTube upload
+- `--regenerate-video` - Force regenerate video before upload
+- `--verbose` - Detailed output
+
+### **Campaign Workflow Sequence**
+The five campaign scripts work in sequence, each using output from the previous step:
+
+**Sequence:**
+1. **`run_images_demo.sh`** → Generates product images from `brief.json` (logs to `image_generation` stage)
+2. **`run_video_demo.sh`** → Creates products video from images (calls step 1 if images missing; logs to `video_generation` stage)
+3. **`run_heygen_demo.sh`** → Generates avatar sales pitch video from `brief.json` (logs to `heygen_generation` stage)
+4. **`run_heygen_products_demo.sh`** → Concatenates avatar + products videos into final campaign video (logs to `combination_generation` stage)
+5. **`run_youtube_heygen_products_demo.sh`** → Uploads video to YouTube as draft (calls step 4 if video missing; logs to `youtube_upload` stage)
+
+**Logging:** Each stage automatically logs to the unified SQLite database (`outputs/logs/pipeline_logs.db`) with stage-specific metadata for complete campaign auditability.
+
+**Example full campaign execution:**
+```bash
+# Step 1: Generate product images
+./scripts/campaigns/run_images_demo.sh --brief configs/brief.json
+
+# Step 2: Create products video (will use existing images)
+./scripts/campaigns/run_video_demo.sh --brief configs/brief.json
+
+# Step 3: Generate avatar video
+./scripts/campaigns/run_heygen_demo.sh --brief configs/brief.json
+
+# Step 4: Combine both videos
+./scripts/campaigns/run_heygen_products_demo.sh --brief configs/brief.json
+
+# Step 5: Upload to YouTube as draft
+./scripts/campaigns/run_youtube_heygen_products_demo.sh --brief configs/brief.json --secrets /path/to/client_secrets.json
+```
 
 ### **run_localization_demo.sh** – Localization Testing
 ```bash
-# Test all 6 region localizations
-./run_localization_demo.sh
-```
-
-### **run_heygen_from_brief.sh** – HeyGen from Brief
-```bash
-# Generate HeyGen video from brief.json
-./run_heygen_from_brief.sh --brief configs/brief.json
+# Test all 6 region localizations (now in tests folder)
+./scripts/tests/test_localization_demo.sh
 ```
 
 ---
@@ -333,6 +406,29 @@ creative-automation-pipeline/
 }
 ```
 
+### **regions-language.json** – Region Mapping
+```json
+{
+  "region_language_mapping": {
+    "USA": "en",
+    "European Union (Germany/France)": "de",
+    "Japan": "ja",
+    "UAE / Saudi Arabia": "ar",
+    "Brazil": "pt",
+    "Scandinavia (Sweden/Denmark)": "sv"
+  },
+  "language_voice_mapping": {
+    "en": "en-US",
+    "de": "de-DE",
+    "ja": "ja-JP",
+    "ar": "ar-SA",
+    "pt": "pt-BR",
+    "sv": "sv-SE"
+  }
+}
+```
+*Used by `run_video_demo.sh` and `run_heygen_demo.sh` for language localization.*
+
 ### **brief.json** – Campaign Template
 ```json
 {
@@ -343,7 +439,12 @@ creative-automation-pipeline/
   ],
   "target_region": "North America (USA/Canada)",
   "audience": "Urban professionals aged 25‑45",
-  "campaign_video_message": "Introducing our premium kitchen essentials..."
+  "campaign_message": "Start your day smarter with our kitchen essentials",
+  "campaign_video_message": "Introducing our premium kitchen essentials...",
+  "avatar_script": "Welcome to NexaGoods, your source for premium kitchen essentials...", // Optional: Custom script for HeyGen avatar
+  "target_language": "en", // Optional: Override region-based language mapping
+  "youtube_title": "Amazing Smart Kitchen Essentials - Must See Review!", // Optional: YouTube video title
+  "youtube_thumbnail": "/path/to/custom/thumbnail.jpg" // Optional: Custom YouTube thumbnail (deprecated: youtube_thumbnail_image also supported)
 }
 ```
 
@@ -366,7 +467,8 @@ outputs/campaign/
 ├── images/
 │   ├── base/                     # 2 base AI-generated images
 │   ├── aspect_ratios/            # 6 resized images (2 × 3)
-│   └── with_logo/                # All 6 images with brand logo
+│   ├── with_logo/                # All 6 images with brand logo
+│   └── with_logo_and_textoverlay/ # All 6 images with logo + campaign text
 ├── video/
 │   └── campaign_slideshow.mp4    # Slideshow with both products
 ├── audio/
@@ -382,15 +484,28 @@ outputs/
 ├── Coffee_Maker_final.png
 ├── Coffee_Maker_voiceover.mp3
 ├── Coffee_Maker_video.mp4
-├── pipeline_logs.db
-└── run_report.json
+└── logs/
+    ├── pipeline_logs.db
+    └── run_report.json
 ```
 
 ---
 
 ## 🧪 Testing Suite
 
-### **Complete Verification**
+### **Complete Verification (With Reports)**
+```bash
+# Run all tests with timestamped .md reports
+./scripts/tests/run_tests_with_reports.sh --all
+
+# Run specific test with report
+./scripts/tests/run_tests_with_reports.sh --test test_campaign_fix
+
+# List available tests
+./scripts/tests/run_tests_with_reports.sh --list
+```
+
+### **Individual Test Scripts**
 ```bash
 # Test all features
 ./scripts/tests/test_campaign_fix.sh
@@ -409,6 +524,7 @@ outputs/
 - ✅ 2 base product images generated
 - ✅ 6 aspect ratio images created (resizing, not regenerating)
 - ✅ Brand logo overlay on all images (10% opacity, top‑right)
+- ✅ Campaign text overlay on all images (with campaign message)
 - ✅ Campaign slideshow video with crossfade transitions
 - ✅ Voiceover mixed with background music
 - ✅ Localization for 6 target regions
@@ -466,8 +582,8 @@ export HEYGEN_API_KEY="sk_V2_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 ### **Debug Mode**
 ```bash
-# Enable verbose output
-./run_campaign_demo.sh --brief configs/brief.json --verbose
+# Enable verbose output (using test script)
+./scripts/tests/test_campaign_demo.sh --brief configs/brief.json --verbose
 
 # Test individual components
 python3 src/aspect_ratio.py --help
@@ -526,5 +642,5 @@ Built for internal demonstration and production‑ready campaign automation.
 
 ---
 
-**Last Updated:** March 2026  
-**Version:** 2.0 – Complete Campaign Automation
+**Last Updated:** March 25, 2026 (Enhanced logging system with 5-stage tracking)  
+**Version:** 2.3 – Enhanced logging system with 5-stage campaign tracking

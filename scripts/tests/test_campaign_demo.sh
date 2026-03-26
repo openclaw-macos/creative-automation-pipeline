@@ -6,11 +6,12 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC_DIR="$SCRIPT_DIR/src"
-OUTPUTS_DIR="$SCRIPT_DIR/outputs/campaign"
-WORKFLOW="$SCRIPT_DIR/configs/default_workflow.json"
-BRAND_CONFIG="$SCRIPT_DIR/configs/brand_config.json"
-BRIEF_FILE="$SCRIPT_DIR/configs/brief.json"
+PROJECT_ROOT="$SCRIPT_DIR/../.."
+SRC_DIR="$PROJECT_ROOT/src"
+OUTPUTS_DIR="$PROJECT_ROOT/outputs/campaign"
+WORKFLOW="$PROJECT_ROOT/configs/default_workflow.json"
+BRAND_CONFIG="$PROJECT_ROOT/configs/brand_config.json"
+BRIEF_FILE="$PROJECT_ROOT/configs/brief.json"
 
 # Default target region
 TARGET_REGION="USA"
@@ -70,6 +71,7 @@ echo ""
 mkdir -p "$OUTPUTS_DIR/images/base"
 mkdir -p "$OUTPUTS_DIR/images/aspect_ratios"
 mkdir -p "$OUTPUTS_DIR/images/with_logo"
+mkdir -p "$OUTPUTS_DIR/images/with_logo_and_textoverlay"
 mkdir -p "$OUTPUTS_DIR/video"
 mkdir -p "$OUTPUTS_DIR/audio"
 mkdir -p "$OUTPUTS_DIR/logs"
@@ -144,8 +146,8 @@ echo "   Language: $TARGET_LANGUAGE"
 echo ""
 
 # Use virtual environment Python if available
-if [ -f "./venv/bin/python" ]; then
-    PYTHON_EXEC="./venv/bin/python"
+if [ -f "$PROJECT_ROOT/venv/bin/python" ]; then
+    PYTHON_EXEC="$PROJECT_ROOT/venv/bin/python"
 else
     PYTHON_EXEC="python3"
 fi
@@ -289,11 +291,80 @@ done
 echo ""
 echo "✅ Generated ${#ALL_IMAGES_WITH_LOGO[@]} images with aspect ratios"
 
+# Step 2b: Add text overlay to images with logo
+echo ""
+echo "=== Step 2b: Adding Text Overlay ==="
+
+ALL_IMAGES_WITH_TEXT_OVERLAY=()
+
+if [ ${#ALL_IMAGES_WITH_LOGO[@]} -eq 0 ]; then
+    echo "⚠️  No images available for text overlay"
+    ALL_IMAGES_WITH_TEXT_OVERLAY=("${ALL_IMAGES_WITH_LOGO[@]}")
+else
+    echo "Adding text overlay to ${#ALL_IMAGES_WITH_LOGO[@]} images..."
+    echo "Campaign message: $CAMPAIGN_MESSAGE"
+    
+    for LOGO_IMAGE in "${ALL_IMAGES_WITH_LOGO[@]}"; do
+        # Get filename and create output path
+        FILENAME=$(basename "$LOGO_IMAGE")
+        BASE_NAME="${FILENAME%.*}"
+        OUTPUT_IMAGE="$OUTPUTS_DIR/images/with_logo_and_textoverlay/${BASE_NAME}_with_text.png"
+        
+        echo "  Processing: $FILENAME"
+        
+        # Use Python to add text overlay via video_pipeline
+        $PYTHON_EXEC -c "
+import sys
+import os
+sys.path.append('$SRC_DIR')
+
+try:
+    from video_pipeline import VideoPipeline
+    
+    # Initialize video pipeline
+    pipeline = VideoPipeline(
+        brand_config_path='$BRAND_CONFIG',
+        target_region='$TARGET_REGION',
+        language_code='$TARGET_LANGUAGE'
+    )
+    
+    # Add text overlay
+    result = pipeline.add_text_overlay(
+        '$LOGO_IMAGE',
+        '$CAMPAIGN_MESSAGE',
+        '$OUTPUT_IMAGE'
+    )
+    
+    if os.path.exists('$OUTPUT_IMAGE'):
+        print(f'    ✅ Text overlay added: {os.path.basename(\"$OUTPUT_IMAGE\")}')
+    else:
+        print(f'    ⚠️  Text overlay failed, using original image')
+        import shutil
+        shutil.copy2('$LOGO_IMAGE', '$OUTPUT_IMAGE')
+        
+except Exception as e:
+    print(f'    ❌ Error adding text overlay: {e}')
+    import shutil
+    shutil.copy2('$LOGO_IMAGE', '$OUTPUT_IMAGE')
+"
+        
+        if [ -f "$OUTPUT_IMAGE" ]; then
+            ALL_IMAGES_WITH_TEXT_OVERLAY+=("$OUTPUT_IMAGE")
+        else
+            # Fallback to original logo image
+            ALL_IMAGES_WITH_TEXT_OVERLAY+=("$LOGO_IMAGE")
+        fi
+    done
+    
+    echo ""
+    echo "✅ Generated ${#ALL_IMAGES_WITH_TEXT_OVERLAY[@]} images with logo and text overlay"
+fi
+
 # Step 3: Create slideshow video with voiceover and background music
 echo ""
 echo "=== Step 3: Creating Campaign Video ==="
 
-if [ ${#ALL_IMAGES_WITH_LOGO[@]} -eq 0 ]; then
+if [ ${#ALL_IMAGES_WITH_TEXT_OVERLAY[@]} -eq 0 ]; then
     echo "❌ No images available for video creation"
     exit 1
 fi
@@ -330,7 +401,7 @@ try:
     video_path = '$OUTPUTS_DIR/video/campaign_slideshow.mp4'
     
     # Get images for slideshow (use 16:9 aspect ratio images if available)
-    images = '''${ALL_IMAGES_WITH_LOGO[*]}'''.split()
+    images = '''${ALL_IMAGES_WITH_TEXT_OVERLAY[*]}'''.split()
     
     # Filter for 16:9 aspect ratio images if we have them
     slideshow_images = []
@@ -376,6 +447,7 @@ echo "📁 Outputs generated:"
 echo "  Base images: $OUTPUTS_DIR/images/base/"
 echo "  Aspect ratios: $OUTPUTS_DIR/images/aspect_ratios/"
 echo "  Images with logo: $OUTPUTS_DIR/images/with_logo/"
+echo "  Images with logo and text overlay: $OUTPUTS_DIR/images/with_logo_and_textoverlay/"
 echo "  Audio: $OUTPUTS_DIR/audio/"
 echo "  Video: $OUTPUTS_DIR/video/"
 echo ""
@@ -385,6 +457,6 @@ echo "To play the video:"
 echo "  open $OUTPUTS_DIR/video/campaign_slideshow.mp4"
 echo ""
 echo "To view all generated images:"
-echo "  ls -la $OUTPUTS_DIR/images/with_logo/"
+echo "  ls -la $OUTPUTS_DIR/images/with_logo_and_textoverlay/"
 echo ""
 echo "✅ Campaign demo completed!"

@@ -2,7 +2,7 @@
 """
 Campaign Manager for Creative Automation Pipeline.
 Handles folder structure, campaign organization, and brief processing.
-Creates numbered folders for campaigns (1_, 2_, etc.) as specified in requirements.
+Creates timestamped folders for campaigns (campaign_{number}_{product_type}_{region}_{timestamp}) as per new standard.
 """
 import os
 import sys
@@ -23,6 +23,13 @@ try:
 except ImportError:
     # Fallback for when run as module
     from .utils.logger import log_info, log_warning, log_error, log_success, log_failure, log_debug, log_step, set_log_level, get_log_level
+
+# Import timestamp utilities
+try:
+    from timestamp_utils import generate_campaign_folder_name, get_timestamp
+except ImportError:
+    # Fallback for direct execution
+    from .timestamp_utils import generate_campaign_folder_name, get_timestamp
 
 class CampaignManager:
     """
@@ -76,11 +83,22 @@ class CampaignManager:
         
         return max(numbers) + 1 if numbers else 1
     
-    def generate_campaign_name(self, brief: Dict) -> str:
+    def generate_campaign_name(self, brief: Dict, campaign_number: int = None) -> str:
         """
-        Generate campaign folder name from brief.
-        Format: {number}_{product_type}_{region}
+        Generate campaign folder name from brief with timestamp.
+        Format: campaign_{number}_{product_type}_{region}_{timestamp}
+        
+        Args:
+            brief: Campaign brief dictionary
+            campaign_number: Campaign number (if None, uses next available)
+            
+        Returns:
+            Campaign folder name with timestamp
         """
+        # Get campaign number
+        if campaign_number is None:
+            campaign_number = self.get_next_campaign_number()
+        
         # Extract product type (first product)
         products = brief.get("products", ["Unknown"])
         product_type = products[0].replace(" ", "_")
@@ -88,15 +106,20 @@ class CampaignManager:
         # Extract region
         target_region = brief.get("target_region", "Unknown")
         
-        # Clean region for folder name
-        region_clean = re.sub(r'[^\w\s-]', '', target_region)
-        region_clean = region_clean.replace(" ", "_").replace("/", "_")
+        # Generate folder name with timestamp
+        folder_name = generate_campaign_folder_name(
+            campaign_number=campaign_number,
+            product_type=product_type,
+            target_region=target_region,
+            include_timestamp=True,
+            timestamp_with_seconds=True  # Use seconds as per requirements
+        )
         
-        return f"{product_type}_{region_clean}"
+        return folder_name
     
     def create_campaign_folder(self, brief: Dict, brief_path: str) -> Tuple[str, str]:
         """
-        Create numbered campaign folder and copy brief.json.
+        Create timestamped campaign folder and copy brief.json.
         
         Args:
             brief: Campaign brief dictionary
@@ -108,11 +131,8 @@ class CampaignManager:
         # Get next campaign number
         campaign_number = self.get_next_campaign_number()
         
-        # Generate campaign name
-        campaign_name = self.generate_campaign_name(brief)
-        
-        # Create folder name (e.g., "1_Smart_Kitchen_Essentials_North_America")
-        folder_name = f"{campaign_number}_{campaign_name}"
+        # Generate campaign folder name with timestamp
+        folder_name = self.generate_campaign_name(brief, campaign_number)
         folder_path = os.path.join(self.campaigns_root, folder_name)
         
         # Create folder
@@ -203,8 +223,21 @@ class CampaignManager:
                 old_folder_name = info["folder_name"]
                 
                 # Extract base name (without number prefix)
-                base_name = "_".join(old_folder_name.split("_")[1:])
-                new_folder_name = f"{new_number}_{base_name}"
+                # Handle both old format (number_...) and new format (campaign_number_...)
+                parts = old_folder_name.split("_")
+                if old_folder_name.startswith("campaign_"):
+                    # New format: campaign_{number}_{product}_{region}_{timestamp}
+                    # Keep everything after campaign_{number}
+                    base_name = "_".join(parts[2:]) if len(parts) > 2 else ""
+                else:
+                    # Old format: {number}_{product}_{region}
+                    base_name = "_".join(parts[1:]) if len(parts) > 1 else ""
+                
+                # Create new folder name with appropriate prefix
+                if old_folder_name.startswith("campaign_"):
+                    new_folder_name = f"campaign_{new_number}_{base_name}"
+                else:
+                    new_folder_name = f"{new_number}_{base_name}"
                 new_folder_path = os.path.join(self.campaigns_root, new_folder_name)
                 
                 # Rename folder

@@ -5,8 +5,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC_DIR="$SCRIPT_DIR/src"
-OUTPUTS_DIR="$SCRIPT_DIR/outputs/localization_demo"
+PROJECT_ROOT="$SCRIPT_DIR/.."
+SRC_DIR="$PROJECT_ROOT/src"
+OUTPUTS_DIR="$PROJECT_ROOT/outputs/localization_demo"
 
 echo "=== Localization Demo for Creative Automation Pipeline ==="
 echo ""
@@ -95,6 +96,6 @@ echo "2. Run video pipeline with each brief.json"
 echo "3. Verify audio generation in correct language"
 echo ""
 echo "To test video pipeline with a specific region:"
-echo "  cd $SCRIPT_DIR"
+echo "  cd $PROJECT_ROOT"
 echo "  ./run_video_demo.sh --target-region \"Japan\""
 echo ""

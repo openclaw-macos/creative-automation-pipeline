@@ -29,6 +29,14 @@ except ImportError as e:
     log_warning(f"HeyGen integration not available: {e}")
     HEYGEN_AVAILABLE = False
 
+# Reporting module import
+try:
+    from reporting import PipelineReporter
+    REPORTING_AVAILABLE = True
+except ImportError as e:
+    log_warning(f"Reporting module not available: {e}")
+    REPORTING_AVAILABLE = False
+
 def load_brief(brief_path: str) -> Dict:
     """Load and validate brief.json file."""
     if not os.path.exists(brief_path):
@@ -44,6 +52,38 @@ def load_brief(brief_path: str) -> Dict:
             raise ValueError(f"Missing required field in brief: {field}")
     
     return brief
+
+def load_region_language_mapping(config_path: str = None) -> Dict:
+    """Load region-to-language mapping from config file."""
+    if config_path is None:
+        # Default location relative to script
+        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
+                                  "configs", "regions-language.json")
+    
+    if not os.path.exists(config_path):
+        log_warning(f"Region language config not found at {config_path}, using defaults")
+        # Return default mapping matching localization.py
+        return {
+            "region_language_mapping": {
+                "USA": "en",
+                "European Union (Germany/France)": "de",
+                "Japan": "ja",
+                "UAE / Saudi Arabia": "ar",
+                "Brazil": "pt",
+                "Scandinavia (Sweden/Denmark)": "sv"
+            },
+            "language_voice_mapping": {
+                "en": "en-US",
+                "de": "de-DE",
+                "ja": "ja-JP",
+                "ar": "ar-SA",
+                "pt": "pt-BR",
+                "sv": "sv-SE"
+            }
+        }
+    
+    with open(config_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
 def generate_heygen_video_from_brief(
     brief_path: str,
@@ -76,16 +116,33 @@ def generate_heygen_video_from_brief(
         log_info(f"   Region: {brief['target_region']}")
         log_info(f"   Audience: {brief['audience']}")
         
-        # Initialize localization
-        loc = Localization(use_mock=use_mock_translation, translation_api="libre")
+        # Load region language mapping
+        mapping = load_region_language_mapping()
+        region_mapping = mapping.get("region_language_mapping", {})
+        voice_mapping = mapping.get("language_voice_mapping", {})
         
-        # Localize campaign (generates campaign_video_message if not present)
-        localized = loc.localize_campaign(brief, use_translation=not use_mock_translation)
+        # Get language code from region mapping
+        target_region = brief.get("target_region", "USA")
+        language_code = region_mapping.get(target_region, "en")
+        log_info(f"   Language code: {language_code} (from region: {target_region})")
         
-        # Get script for HeyGen
-        script = localized.get("campaign_video_message") or localized.get("campaign_message_localized")
-        if not script:
-            script = brief.get("campaign_message", "")
+        # Get avatar script (priority: avatar_script > campaign_video_message > campaign_message)
+        script = brief.get("avatar_script") or brief.get("campaign_video_message") or brief.get("campaign_message", "")
+        
+        # If script is empty or too short, generate from products using AI
+        if not script or len(script) < 50:
+            log_info("   Generating avatar script from products using AI...")
+            # Use localization to generate campaign video message
+            loc = Localization(use_mock=use_mock_translation, translation_api="libre")
+            localized = loc.localize_campaign(brief, use_translation=not use_mock_translation)
+            script = localized.get("campaign_video_message") or localized.get("campaign_message_localized") or script
+        else:
+            # Use existing localization for translation if needed
+            if language_code != "en" and not use_mock_translation:
+                loc = Localization(use_mock=False, translation_api="libre")
+                script = loc.translate_text(script, "auto", language_code)
+                log_info(f"   Translated script to {language_code}")
+            localized = {"language_code": language_code}
         
         log_info(f"   Script length: {len(script)} characters")
         log_info(f"   Language: {localized.get('language_code', 'en')}")
@@ -94,12 +151,15 @@ def generate_heygen_video_from_brief(
         heygen = HeyGenIntegration(api_key=api_key)
         
         # Generate video
+        import time
+        start_time = time.time()
         result = heygen.generate_with_local_models(
             prompt=script,
             local_model_type=local_model,
             output_path=output_path,
             language=localized.get("language_code", "en")
         )
+        duration_ms = int((time.time() - start_time) * 1000)
         
         # Add brief metadata to result
         if result["success"]:
@@ -111,9 +171,69 @@ def generate_heygen_video_from_brief(
                 "language": localized.get("language_code", "en")
             }
         
+        # Log to database if reporting available
+        if REPORTING_AVAILABLE and result["success"]:
+            try:
+                # Determine product name (first product or concatenated)
+                product_name = brief["products"][0] if brief["products"] else "Unknown Product"
+                if len(brief["products"]) > 1:
+                    product_name = f"Multiple: {', '.join(brief['products'][:2])}"
+                
+                # Use default database path
+                from reporting import PipelineReporter
+                DEFAULT_DB_PATH = os.path.join(SCRIPT_DIR, "../outputs/logs/pipeline_logs.db")
+                DEFAULT_JSON_REPORT = os.path.join(SCRIPT_DIR, "../outputs/logs/run_report.json")
+                
+                reporter = PipelineReporter(db_path=DEFAULT_DB_PATH, json_log_path=DEFAULT_JSON_REPORT)
+                log_id = reporter.log_heygen_generation(
+                    product=product_name,
+                    brief_name=os.path.basename(brief_path),
+                    heygen_video_id=result.get("task_id", "unknown"),
+                    duration_ms=duration_ms,
+                    status="success",
+                    additional_info={
+                        "video_path": result.get("video_path"),
+                        "file_size_bytes": result.get("file_size_bytes"),
+                        "script_length": len(script),
+                        "language": localized.get("language_code", "en"),
+                        "region": brief.get("target_region"),
+                        "audience": brief.get("audience")
+                    }
+                )
+                log_debug(f"Logged HeyGen generation with ID: {log_id}")
+            except Exception as log_error:
+                log_warning(f"Failed to log HeyGen generation: {log_error}")
+        
         return result
         
     except Exception as e:
+        # Log failure if reporting available
+        if REPORTING_AVAILABLE:
+            try:
+                from reporting import PipelineReporter
+                DEFAULT_DB_PATH = os.path.join(SCRIPT_DIR, "../outputs/logs/pipeline_logs.db")
+                DEFAULT_JSON_REPORT = os.path.join(SCRIPT_DIR, "../outputs/logs/run_report.json")
+                
+                reporter = PipelineReporter(db_path=DEFAULT_DB_PATH, json_log_path=DEFAULT_JSON_REPORT)
+                product_name = "Unknown Product"
+                if "brief" in locals():
+                    product_name = brief.get("products", ["Unknown Product"])[0] if brief.get("products") else "Unknown Product"
+                
+                log_id = reporter.log_heygen_generation(
+                    product=product_name,
+                    brief_name=os.path.basename(brief_path) if "brief_path" in locals() else "unknown",
+                    heygen_video_id="failed",
+                    duration_ms=0,
+                    status="failed",
+                    additional_info={
+                        "error": str(e),
+                        "brief_path": brief_path if "brief_path" in locals() else "unknown"
+                    }
+                )
+                log_debug(f"Logged failed HeyGen generation with ID: {log_id}")
+            except Exception as log_error:
+                log_warning(f"Failed to log failed HeyGen generation: {log_error}")
+        
         return {"success": False, "error": str(e)}
 
 def main():
