@@ -1,5 +1,5 @@
 #!/bin/bash
-# Complete workflow demonstration for Creative Automation Pipeline
+# Complete workflow demonstration for FDE take-home assignment
 # Shows localization, folder structure, and campaign generation
 
 set -e
@@ -10,7 +10,7 @@ CAMPAIGNS_DIR="$SCRIPT_DIR/campaigns"
 OUTPUTS_DIR="$SCRIPT_DIR/outputs"
 
 echo "============================================================"
-echo "CREATIVE AUTOMATION PIPELINE - COMPLETE WORKFLOW DEMONSTRATION"
+echo "FDE TAKE-HOME ASSIGNMENT - COMPLETE WORKFLOW DEMONSTRATION"
 echo "============================================================"
 echo ""
 

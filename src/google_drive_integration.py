@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Google Drive Integration for Creative Automation Pipeline.
-Uploads generated assets to Google Drive for cloud storage.
+Uploads generated assets to Google Drive as per FDE assignment requirement.
 Uses service account authentication.
 """
 import os

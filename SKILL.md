@@ -59,7 +59,7 @@ To modify the workflow (change model, sampler, dimensions), edit the JSON file o
 
 ## Usage in OpenClaw Tasks
 
-When a creative automation pipeline needs to generate product images, call the script with the product‑specific prompt:
+When an FDE pipeline needs to generate product images, call the script with the product‑specific prompt:
 
 ```python
 import subprocess

@@ -53,7 +53,7 @@ def main():
         log_warning("Output is in current directory.")
     
     # Suggest absolute path for pipeline integration
-    log_info("\nFor integration with the Creative Automation Pipeline, use an absolute path:")
+    log_info("\nFor integration with the FDE pipeline, use an absolute path:")
     log_info(f'  --output "{abs_path}"')
 
 if __name__ == "__main__":
