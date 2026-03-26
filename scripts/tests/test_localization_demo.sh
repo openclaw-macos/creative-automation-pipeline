@@ -50,8 +50,18 @@ for region in "${REGIONS[@]}"; do
     # Test localization module
     $PYTHON_EXEC -c "
 import sys
-sys.path.append('$SRC_DIR')
-from localization import Localization
+import os
+
+# Add both src and project root to Python path
+sys.path.insert(0, '$SRC_DIR')
+sys.path.insert(0, '$PROJECT_ROOT')
+
+try:
+    from localization import Localization
+except ImportError as e:
+    print(f'  ERROR: Failed to import localization: {e}')
+    print(f'  sys.path: {sys.path}')
+    sys.exit(1)
 
 loc = Localization(use_mock=True)
 lang = loc.get_language_code('$region')

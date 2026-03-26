@@ -281,7 +281,7 @@ creative-automation-pipeline/
 │   │   └── run_tests_with_reports.sh   # Test runner with timestamped reports
 │   ├── timestamp_utils.sh          # Bash timestamp utilities (YYYYMMDD_HHMM format)
 │   ├── test_campaign_template.sh   # Campaign testing template with timestamped reports
-│   ├── cleanup.sh                  # Output organization and cleanup utility
+│   ├── organize_outputs.sh         # Output organization utility (mandatory)
 │   └── utils/
 │       └── fix_permissions.sh      # Utility script
 └── docs/
@@ -487,10 +487,10 @@ Provides: `get_timestamp_no_seconds`, `get_timestamp_with_seconds`, `get_readabl
 
 **Creates:** Timestamped test outputs in `test_outputs/`, Markdown reports in `test_reports/`, organized campaign folders with standardized naming (`campaign_{name}_{timestamp}`)
 
-**`scripts/cleanup.sh`** – Output organization utility
+**`scripts/organize_outputs.sh`** – Output organization utility (mandatory)
 ```bash
 # Organize outputs, move test files to test_outputs/, backups to backups/
-./scripts/cleanup.sh
+./scripts/organize_outputs.sh
 ```
 Creates: `test_outputs/`, `backups/`, `test_reports/` directories; moves temporary files; optional old campaign cleanup
 

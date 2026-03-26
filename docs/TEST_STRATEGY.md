@@ -71,7 +71,7 @@ $pip_cmd list | grep -E "(pillow|opencv|numpy|requests)" || echo "⚠️ Require
 | **1** | `timestamp_utils.sh` | Timestamp utilities | `source scripts/timestamp_utils.sh; get_timestamp_no_seconds` | Returns `YYYYMMDD_HHMM` format (e.g., `20260325_2251`) | No errors; timestamp matches current time within 1 minute |
 | **2** | `fix_permissions.sh` | Fix script permissions | `./scripts/utils/fix_permissions.sh` | All `.sh` files become executable (`chmod +x`) | `ls -l scripts/*.sh` shows `-rwxr-xr-x` |
 | **3** | `install_deps.sh` | Install dependencies | `./src/install_deps.sh` | Python packages installed; no permission errors | `pip list` shows required packages |
-| **4** | `cleanup.sh` | Output organization | `./scripts/cleanup.sh` | Moves test files to `test_outputs/`, creates `backups/` | `ls test_outputs/` shows organized timestamped folders |
+| **4** | `organize_outputs.sh` | Output organization | `./scripts/organize_outputs.sh` | Moves test files to `test_outputs/`, creates `backups/` | `ls test_outputs/` shows organized timestamped folders |
 | **5** | `test_localization_demo.sh` | Test 6 region localizations | `./scripts/tests/test_localization_demo.sh` | All 6 regions processed without failures | Exit code 0; check `test_reports/*.md` for PASS status |
 | **6** | `test_localization_complete.sh` | Complete localization test | `./scripts/tests/test_localization_complete.sh` | Verifies all campaign requirements for each region | Exit code 0; JSON report in `test_reports/` |
 | **7** | `test_verify_localization.sh` | Verify localization output | `./scripts/tests/test_verify_localization.sh` | Compares expected vs actual localized content | Shows "All localization checks passed" |
