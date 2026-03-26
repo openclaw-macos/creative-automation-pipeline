@@ -5,7 +5,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$SCRIPT_DIR/.."
+PROJECT_ROOT="$SCRIPT_DIR/../.."
 TEST_SCRIPTS_DIR="$SCRIPT_DIR"
 TEST_REPORTS_DIR="$PROJECT_ROOT/test_reports"
 PYTHON_EXEC="python3"
