@@ -55,7 +55,7 @@ if all_pass:
     print('\n✅ TEST 1 PASSED: All region mappings correct')
 else:
     print('\n❌ TEST 1 FAILED: Some region mappings incorrect')
-    exit 1
+    sys.exit(1)
 "
 
 echo ""
@@ -113,7 +113,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
         print('\n✅ TEST 2 PASSED: Folder structure created correctly')
     else:
         print('\n❌ TEST 2 FAILED: Folder structure incomplete')
-        exit 1
+        sys.exit(1)
 "
 
 echo ""
