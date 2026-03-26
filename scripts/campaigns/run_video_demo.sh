@@ -95,7 +95,7 @@ load_brief() {
     echo "Loading campaign brief from: $BRIEF_FILE"
     
     # Extract campaign details using Python
-    CAMPAIGN_DETAILS=$(python3 -c "
+    eval $(python3 -c "
 import sys, json
 sys.path.append('$SRC_DIR')
 try:
@@ -108,25 +108,30 @@ try:
     campaign_message = brief.get('campaign_message', 'Start your day smarter with our kitchen essentials')
     target_language = brief.get('target_language', 'en')
     
-    print("PRODUCT_COUNT=" + str(len(products)))
-    print("PRODUCTS=" + ",".join(products))
-    print("TARGET_REGION=" + target_region)
-    print("AUDIENCE=" + audience)
-    print("CAMPAIGN_MESSAGE=" + campaign_message)
-    print("TARGET_LANGUAGE=" + target_language)
+    # Use newline for products to avoid space-splitting during eval
+    print('PRODUCTS_LIST=\"' + '\\n'.join(products) + '\"')
+    # Also keep PRODUCTS as comma-separated for compatibility
+    print('PRODUCTS=\"' + ','.join(products) + '\"')
+    print('PRODUCT_COUNT=' + str(len(products)))
+    print('TARGET_REGION=\"' + target_region.replace('\"', '\\\\\"') + '\"')
+    print('AUDIENCE=\"' + audience.replace('\"', '\\\\\"') + '\"')
+    print('CAMPAIGN_MESSAGE=\"' + campaign_message.replace('\"', '\\\\\"') + '\"')
+    print('TARGET_LANGUAGE=\"' + target_language + '\"')
     
     # Check for campaign_video_message
     if 'campaign_video_message' in brief:
         video_msg = brief['campaign_video_message'].replace('\n', ' ')
-        print("CAMPAIGN_VIDEO_MESSAGE=" + video_msg)
+        print('CAMPAIGN_VIDEO_MESSAGE=\"' + video_msg.replace('\"', '\\\\\"') + '\"')
         
 except Exception as e:
-    print("ERROR loading brief: " + str(e))
-    sys.exit(1)
+    print('echo \"ERROR loading brief: ' + str(e).replace('\"', '\\\\\"') + '\"; exit 1')
 ")
 
-    # Export campaign details
-    eval "$CAMPAIGN_DETAILS"
+    # Set IFS to handle the newline-separated list
+    OLD_IFS=$IFS
+    IFS=$'\n'
+    PRODUCT_ARRAY=($PRODUCTS_LIST)
+    IFS=$OLD_IFS
     
     BRIEF_NAME=$(basename "$BRIEF_FILE" .json)
     
@@ -308,9 +313,9 @@ run_multi_product_campaign() {
     BASE_IMAGES=()
     INDEX=1
     
-    # Split PRODUCTS by comma into array (handles multi-word product names)
-    IFS=',' read -ra PRODUCT_ARRAY <<< "$PRODUCTS"
+    # Use the PRODUCT_ARRAY already created in load_brief()
     for PRODUCT in "${PRODUCT_ARRAY[@]}"; do
+        if [ -z "$PRODUCT" ]; then continue; fi
         echo ""
         echo "Generating image for: $PRODUCT"
         
