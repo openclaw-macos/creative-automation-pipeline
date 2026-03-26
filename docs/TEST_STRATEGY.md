@@ -117,7 +117,7 @@ cd /Users/youee-mac/IFN_Corp/creative-automation-pipeline
 source scripts/timestamp_utils.sh; get_timestamp_no_seconds
 ./scripts/utils/fix_permissions.sh
 ./src/install_deps.sh
-./scripts/cleanup.sh
+./scripts/organize_outputs.sh
 
 # 5‑10: Localization and test suites
 ./scripts/tests/test_localization_demo.sh
