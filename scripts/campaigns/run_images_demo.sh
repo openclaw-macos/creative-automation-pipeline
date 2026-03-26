@@ -13,6 +13,7 @@ WORKFLOW="$PROJECT_ROOT/configs/default_workflow.json"
 
 # Default brief file
 BRIEF_FILE="$PROJECT_ROOT/configs/brief.json"
+VERBOSE=""
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -20,6 +21,10 @@ while [[ $# -gt 0 ]]; do
         --brief)
             BRIEF_FILE="$2"
             shift 2
+            ;;
+        --verbose)
+            VERBOSE="--verbose"
+            shift
             ;;
         --help)
             echo "Usage: $0 [OPTIONS]"
@@ -29,6 +34,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --brief FILE    Path to brief.json (default: configs/brief.json)"
             echo "  --help          Show this help"
+            echo "  --verbose        Enable verbose debug output"
             echo ""
             echo "Examples:"
             echo "  $0"
@@ -70,22 +76,44 @@ echo ""
 
 # Extract products from brief.json
 echo "Reading products from brief.json..."
-PRODUCTS=$(python3 -c "
+
+# Get products separated by newlines to preserve spaces in names
+PRODUCTS_LIST=$(python3 -c "
 import json
-with open('$BRIEF_FILE', 'r', encoding='utf-8') as f:
-    brief = json.load(f)
-products = brief.get('products', ['Coffee Maker'])
-print(' '.join(products))
+import sys
+try:
+    with open('$BRIEF_FILE', 'r', encoding='utf-8') as f:
+        brief = json.load(f)
+    products = brief.get('products', ['Coffee Maker'])
+    # Output with newline delimiter to preserve spaces in product names
+    print('\\n'.join(products))
+except Exception as e:
+    print(f'ERROR: {e}', file=sys.stderr)
+    sys.exit(1)
 ")
+
+# Check if PRODUCTS_LIST was created
+if [ -z "$PRODUCTS_LIST" ]; then
+    echo "❌ Failed to read products from brief.json"
+    exit 1
+fi
 
 CAMPAIGN_MESSAGE=$(python3 -c "
 import json
-with open('$BRIEF_FILE', 'r', encoding='utf-8') as f:
-    brief = json.load(f)
-print(brief.get('campaign_message', 'Start your day smarter with our kitchen essentials').replace('\n', ' ').replace('\"', '\\\\\"'))
+import sys
+try:
+    with open('$BRIEF_FILE', 'r', encoding='utf-8') as f:
+        brief = json.load(f)
+    message = brief.get('campaign_message', 'Start your day smarter with our kitchen essentials')
+    # Replace newlines with spaces, escape backslashes for Bash
+    message = message.replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"').replace('\n', ' ')
+    print(message)
+except Exception as e:
+    print(f'ERROR: {e}', file=sys.stderr)
+    sys.exit(1)
 ")
 
-echo "Products to generate: $PRODUCTS"
+echo "Products to generate: $(echo "$PRODUCTS_LIST" | tr '\n' ' ')"
 echo "Campaign message: $CAMPAIGN_MESSAGE"
 echo ""
 
@@ -98,10 +126,15 @@ fi
 
 # Generate images for each product
 INDEX=1
-for PRODUCT in $PRODUCTS; do
+
+# Set Internal Field Separator to newline only for this loop
+IFS=$'\n'
+for PRODUCT in $PRODUCTS_LIST; do
+    if [ -z "$PRODUCT" ]; then continue; fi
+    
     echo "=== Generating image for: $PRODUCT ==="
     
-    # Clean product name for filename
+    # Generate clean filename (replaces spaces with underscores)
     CLEAN_NAME=$(echo "$PRODUCT" | tr ' ' '_' | tr '[:upper:]' '[:lower:]')
     OUTPUT_PATH="$OUTPUTS_DIR/images/${CLEAN_NAME}.png"
     
@@ -120,7 +153,8 @@ for PRODUCT in $PRODUCTS; do
         --campaign-message "$CAMPAIGN_MESSAGE" \
         --compliance-check \
         --legal-check \
-        --seed "$INDEX"
+        --seed "$INDEX" \
+        $VERBOSE
     
     if [ -f "$OUTPUT_PATH" ]; then
         echo "✅ Successfully generated: $OUTPUT_PATH"
@@ -136,7 +170,9 @@ echo "========================================="
 echo "Image Generation completed successfully!"
 echo ""
 echo "Outputs:"
-for PRODUCT in $PRODUCTS; do
+IFS=$'\n'
+for PRODUCT in $PRODUCTS_LIST; do
+    if [ -z "$PRODUCT" ]; then continue; fi
     CLEAN_NAME=$(echo "$PRODUCT" | tr ' ' '_' | tr '[:upper:]' '[:lower:]')
     echo "  - $PRODUCT: $OUTPUTS_DIR/images/${CLEAN_NAME}.png"
 done

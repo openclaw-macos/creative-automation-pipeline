@@ -297,7 +297,9 @@ run_multi_product_campaign() {
     BASE_IMAGES=()
     INDEX=1
     
-    for PRODUCT in $(echo $PRODUCTS | tr ',' ' '); do
+    # Split PRODUCTS by comma into array (handles multi-word product names)
+    IFS=',' read -ra PRODUCT_ARRAY <<< "$PRODUCTS"
+    for PRODUCT in "${PRODUCT_ARRAY[@]}"; do
         echo ""
         echo "Generating image for: $PRODUCT"
         

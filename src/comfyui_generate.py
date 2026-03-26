@@ -167,8 +167,15 @@ def log_generation(
         compliance_status = "FAIL_LEGAL"
     
     checks = compliance_results.get("checks", {})
+    
+    # Count passed vs total checks
+    total_checks = len(checks)
+    checks_passed = sum(1 for check in checks.values() if check.get("passed", False))
+    
+    # Individual check results
     brand_colors_passed = checks.get("brand_colors", {}).get("passed", False) if checks else False
     logo_presence_passed = checks.get("logo_presence", {}).get("passed", False) if checks else False
+    legal_check_passed = legal_passed
     
     log_id = reporter.log_generation(
         product=product,
@@ -178,6 +185,11 @@ def log_generation(
         compliance_status=compliance_status,
         generation_time_ms=generation_time_ms,
         image_path=image_path,
+        checks_passed=checks_passed,
+        total_checks=total_checks,
+        brand_colors_passed=brand_colors_passed,
+        logo_presence_passed=logo_presence_passed,
+        legal_check_passed=legal_check_passed,
         campaign_message=campaign_message,
         workflow_name=workflow_name,
         seed=seed,
