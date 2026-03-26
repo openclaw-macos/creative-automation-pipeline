@@ -2,7 +2,7 @@
 # Video Generation Pipeline - Creates video from product images
 # Calls run_images_demo.sh if images are not present
 # Automatically handles single product (video) vs multi-product (campaign slideshow)
-# based on configs/brief.json products array
+# based on brief.json products array
 
 set -e
 
@@ -11,17 +11,23 @@ PROJECT_ROOT="$SCRIPT_DIR/../.."
 SRC_DIR="$PROJECT_ROOT/src"
 OUTPUTS_DIR="$PROJECT_ROOT/outputs"
 WORKFLOW="$PROJECT_ROOT/configs/default_workflow.json"
-BRIEF_FILE="$PROJECT_ROOT/configs/brief.json"
 BRAND_CONFIG="$PROJECT_ROOT/configs/brand_config.json"
+
+# Default brief file
+BRIEF_FILE="$PROJECT_ROOT/configs/brief.json"
 
 # Google Drive integration flags (infrastructure settings, not campaign content)
 UPLOAD_TO_DRIVE=false
 DRIVE_SERVICE_ACCOUNT="~/google_serviceaccount/service_account.json"
 DRIVE_FOLDER_ID="1XdhY-6U624J_ml-MulmMfhQ5zrn9ja1H"
 
-# Parse command line arguments (no --target-region - always from brief.json)
+# Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --brief)
+            BRIEF_FILE="$2"
+            shift 2
+            ;;
         --upload-to-drive)
             UPLOAD_TO_DRIVE=true
             shift
@@ -34,13 +40,43 @@ while [[ $# -gt 0 ]]; do
             DRIVE_FOLDER_ID="$2"
             shift 2
             ;;
+        --help)
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Video Generation Pipeline - Creates video from product images"
+            echo "Automatically handles single product (video) vs multi-product (campaign slideshow)"
+            echo ""
+            echo "Options:"
+            echo "  --brief FILE              Path to brief.json (default: configs/brief.json)"
+            echo "  --upload-to-drive         Enable Google Drive upload"
+            echo "  --drive-service-account   Google service account JSON path"
+            echo "  --drive-folder-id         Google Drive folder ID for upload"
+            echo "  --help                    Show this help"
+            echo ""
+            echo "Examples:"
+            echo "  $0"
+            echo "  $0 --brief configs/examples/3_Premium_Personal_Care_Japan/brief.json"
+            echo "  $0 --upload-to-drive --drive-service-account ~/google_serviceaccount/service_account.json"
+            exit 0
+            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--upload-to-drive] [--drive-service-account PATH] [--drive-folder-id ID]"
+            echo "Use --help for usage information"
             exit 1
             ;;
     esac
 done
+
+echo "=== Creative Automation Pipeline with Video Demo ==="
+echo "Brief file: $BRIEF_FILE"
+if [ "$UPLOAD_TO_DRIVE" = true ]; then
+    echo "Google Drive Upload: ENABLED"
+    echo "  Service Account: $DRIVE_SERVICE_ACCOUNT"
+    echo "  Folder ID: $DRIVE_FOLDER_ID"
+else
+    echo "Google Drive Upload: DISABLED (use --upload-to-drive to enable)"
+fi
+echo ""
 
 # Function to load brief.json and extract campaign details
 load_brief() {

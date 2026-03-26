@@ -13,7 +13,6 @@ OUTPUTS_DIR="$PROJECT_ROOT/outputs/heygen"
 
 # Default values
 BRIEF_FILE="$CONFIGS_DIR/brief.json"
-TARGET_REGION=""
 USE_REAL_TRANSLATION=false
 LOCAL_MODEL="mistral-nemo"
 VERBOSE=false
@@ -26,10 +25,6 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --brief)
             BRIEF_FILE="$2"
-            shift 2
-            ;;
-        --target-region)
-            TARGET_REGION="$2"
             shift 2
             ;;
         --use-real-translation)
@@ -55,7 +50,6 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --brief FILE              Path to brief.json (default: configs/brief.json)"
-            echo "  --target-region REGION    Override target region in brief"
             echo "  --use-real-translation    Use real translation API (default: mock/offline)"
             echo "  --local-model MODEL       Local model for script planning (default: mistral-nemo)"
             echo "  --api-key KEY             HeyGen API key (overrides default)"
@@ -64,7 +58,6 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Examples:"
             echo "  $0 --brief configs/brief.json"
-            echo "  $0 --target-region \"Japan\" --use-real-translation"
             echo "  $0 --api-key \"sk_V2_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
             exit 0
             ;;
@@ -78,9 +71,6 @@ done
 
 echo "=== HeyGen Avatar Integration (Consolidated) ==="
 echo "Brief file: $BRIEF_FILE"
-if [ -n "$TARGET_REGION" ]; then
-    echo "Target region override: $TARGET_REGION"
-fi
 echo "Translation: $([ "$USE_REAL_TRANSLATION" = true ] && echo "Real API" || echo "Mock (offline)")"
 echo "Local model: $LOCAL_MODEL"
 echo ""
@@ -140,32 +130,11 @@ if [ "$VERBOSE" = true ]; then
     CMD_ARGS+=("--verbose")
 fi
 
-# Override target region if specified (by modifying brief temporarily)
-if [ -n "$TARGET_REGION" ]; then
-    echo "  Overriding target region to: $TARGET_REGION"
-    # Create temporary brief with overridden region
-    TEMP_BRIEF=$(mktemp)
-    python3 -c "
-import json
-with open('$BRIEF_FILE', 'r', encoding='utf-8') as f:
-    brief = json.load(f)
-brief['target_region'] = '$TARGET_REGION'
-with open('$TEMP_BRIEF', 'w', encoding='utf-8') as f:
-    json.dump(brief, f, indent=2)
-"
-    CMD_ARGS[1]="$TEMP_BRIEF"  # Update brief path in args
-fi
-
 # Run HeyGen generation
 echo "  Running: $PYTHON_EXEC $SRC_DIR/generate_heygen_from_brief.py ${CMD_ARGS[*]}"
 echo ""
 
 $PYTHON_EXEC "$SRC_DIR/generate_heygen_from_brief.py" "${CMD_ARGS[@]}"
-
-# Clean up temporary brief if created
-if [ -n "$TEMP_BRIEF" ] && [ -f "$TEMP_BRIEF" ]; then
-    rm -f "$TEMP_BRIEF"
-fi
 
 echo ""
 echo "========================================="

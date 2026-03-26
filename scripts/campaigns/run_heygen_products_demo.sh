@@ -140,22 +140,28 @@ generate_avatar_video() {
     echo "  Output: $avatar_output"
     echo ""
     
-    # Run consolidated HeyGen script
+    # Run consolidated HeyGen script (without --output, script generates its own path)
     cd "$PROJECT_ROOT"
     ./scripts/campaigns/run_heygen_demo.sh \
         --brief "$BRIEF_FILE" \
-        --verbose "$VERBOSE" \
-        --output "$avatar_output" 2>&1 | tee "$OUTPUT_DIR/avatar_generation.log"
+        --verbose "$VERBOSE" 2>&1 | tee "$OUTPUT_DIR/avatar_generation.log"
     
-    if [ ${PIPESTATUS[0]} -eq 0 ] && [ -f "$avatar_output" ]; then
-        echo "✅ Avatar video generated: $avatar_output"
+    # Find the generated avatar video (run_heygen_demo.sh outputs to outputs/heygen/)
+    HEYGEN_OUTPUT_DIR="$OUTPUTS_DIR/heygen"
+    GENERATED_AVATAR=$(find "$HEYGEN_OUTPUT_DIR" -name "*${BRIEF_NAME}*avatar*.mp4" -type f | sort -r | head -1)
+    
+    if [ ${PIPESTATUS[0]} -eq 0 ] && [ -n "$GENERATED_AVATAR" ] && [ -f "$GENERATED_AVATAR" ]; then
+        # Copy to our expected location
+        cp "$GENERATED_AVATAR" "$avatar_output"
+        echo "✅ Avatar video generated: $avatar_output (from $GENERATED_AVATAR)"
         AVATAR_VIDEO="$avatar_output"
     else
-        echo "❌ Avatar video generation failed"
+        echo "❌ Avatar video generation failed or output not found"
         if [ -f "$OUTPUT_DIR/avatar_generation.log" ]; then
             echo "Log output:"
             tail -20 "$OUTPUT_DIR/avatar_generation.log"
         fi
+        echo "Searched in: $HEYGEN_OUTPUT_DIR for *${BRIEF_NAME}*avatar*.mp4"
         exit 1
     fi
 }
@@ -172,20 +178,38 @@ generate_products_video() {
     echo "  Output: $products_output"
     echo ""
     
-    # Extract target region from brief for video demo
-    TARGET_REGION=$(python3 -c "
+    # Run video demo script (target region comes from brief.json)
+    cd "$PROJECT_ROOT"
+    ./scripts/campaigns/run_video_demo.sh \
+        --brief "$BRIEF_FILE" 2>&1 | tee "$OUTPUT_DIR/products_generation.log"
+    
+    # Find the generated video file (run_video_demo.sh outputs to different locations)
+    # For single product: outputs/video/Product_Name_video.mp4
+    # For multi-product: outputs/campaign/video/campaign_slideshow.mp4
+    # We need to locate it and copy to our expected location
+    if [ -f "$OUTPUTS_DIR/campaign/video/campaign_slideshow.mp4" ]; then
+        # Multi-product campaign
+        cp "$OUTPUTS_DIR/campaign/video/campaign_slideshow.mp4" "$products_output"
+    else
+        # Single product - find the video file
+        # Get first product from brief
+        FIRST_PRODUCT=$(python3 -c "
 import json
 with open('$BRIEF_FILE', 'r', encoding='utf-8') as f:
     brief = json.load(f)
-print(brief.get('target_region', 'USA'))
+products = brief.get('products', ['Coffee Maker'])
+print(products[0].replace(' ', '_'))
 ")
-    
-    # Run video demo script
-    cd "$PROJECT_ROOT"
-    ./scripts/campaigns/run_video_demo.sh \
-        --brief "$BRIEF_FILE" \
-        --target-region "$TARGET_REGION" \
-        --output "$products_output" 2>&1 | tee "$OUTPUT_DIR/products_generation.log"
+        SINGLE_VIDEO="$OUTPUTS_DIR/video/${FIRST_PRODUCT}_video.mp4"
+        if [ -f "$SINGLE_VIDEO" ]; then
+            cp "$SINGLE_VIDEO" "$products_output"
+        else
+            echo "❌ Could not find generated video file"
+            echo "   Checked: $OUTPUTS_DIR/campaign/video/campaign_slideshow.mp4"
+            echo "   Checked: $SINGLE_VIDEO"
+            exit 1
+        fi
+    fi
     
     if [ ${PIPESTATUS[0]} -eq 0 ] && [ -f "$products_output" ]; then
         echo "✅ Products video generated: $products_output"

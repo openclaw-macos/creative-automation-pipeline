@@ -271,7 +271,7 @@ creative-automation-pipeline/
 ### **(Step 1) run_images_demo.sh** – Image Generation Pipeline
 ```bash
 # Image generation + compliance + legal + reporting
-./scripts/campaigns/run_images_demo.sh [--product "Coffee Maker"] [--width 512] [--height 512]
+./scripts/campaigns/run_images_demo.sh [--brief FILE]
 ```
 **What it does:**
 1. Generates product image via ComfyUI
@@ -282,7 +282,7 @@ creative-automation-pipeline/
 ### **(Step 2) run_video_demo.sh** – Video Pipeline
 ```bash
 # Creates video from images (calls run_images_demo.sh if images not present)
-./scripts/campaigns/run_video_demo.sh [--upload-to-drive]
+./scripts/campaigns/run_video_demo.sh [--brief FILE] [--upload-to-drive] [--drive-service-account PATH] [--drive-folder-id ID]
 ```
 **What it does (automatically detects single vs multi-product from brief.json):**
 
@@ -309,7 +309,7 @@ creative-automation-pipeline/
 ### **(Step 3) run_heygen_demo.sh** – Consolidated Avatar Videos
 ```bash
 # Generate HeyGen avatar video from campaign brief (reads from brief.json)
-./scripts/campaigns/run_heygen_demo.sh --brief configs/brief.json [--api-key YOUR_KEY]
+./scripts/campaigns/run_heygen_demo.sh [--brief FILE] [--api-key KEY] [--use-real-translation] [--local-model MODEL] [--verbose]
 ```
 **Features:**
 - Reads `brief.json` with optional `avatar_script` field
@@ -322,7 +322,7 @@ creative-automation-pipeline/
 ### **(Step 4) run_heygen_products_demo.sh** – Combined Avatar + Products Video
 ```bash
 # Generate combined video: avatar sales pitch + products showcase
-./scripts/campaigns/run_heygen_products_demo.sh --brief configs/brief.json
+./scripts/campaigns/run_heygen_products_demo.sh [--brief FILE] [--avatar-video FILE] [--products-video FILE] [--output-dir DIR] [--regenerate-avatar] [--regenerate-products] [--keep-intermediates] [--verbose]
 ```
 **Workflow:**
 1. Generates HeyGen avatar video (or uses existing)
@@ -333,7 +333,7 @@ creative-automation-pipeline/
 ### **(Step 5) run_youtube_heygen_products_demo.sh** – YouTube Upload
 ```bash
 # Upload HeyGen avatar products video to YouTube as draft
-./scripts/campaigns/run_youtube_heygen_products_demo.sh --brief configs/brief.json --secrets /path/to/client_secrets.json
+./scripts/campaigns/run_youtube_heygen_products_demo.sh [--brief FILE] [--secrets FILE] [--regenerate-video] [--simulate] [--verbose] [--keep-thumbnail]
 ```
 **Workflow:**
 1. Checks for combined video (calls `run_heygen_products_demo.sh` if not present)
@@ -370,7 +370,7 @@ The five campaign scripts work in sequence, each using output from the previous 
 ./scripts/campaigns/run_images_demo.sh --brief configs/brief.json
 
 # Step 2: Create products video (will use existing images, auto-detects single/multi-product)
-./scripts/campaigns/run_video_demo.sh
+./scripts/campaigns/run_video_demo.sh --brief configs/brief.json
 
 # Step 3: Generate avatar video
 ./scripts/campaigns/run_heygen_demo.sh --brief configs/brief.json
