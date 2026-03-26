@@ -142,9 +142,14 @@ generate_avatar_video() {
     
     # Run consolidated HeyGen script (without --output, script generates its own path)
     cd "$PROJECT_ROOT"
-    ./scripts/campaigns/run_heygen_demo.sh \
-        --brief "$BRIEF_FILE" \
-        --verbose "$VERBOSE" 2>&1 | tee "$OUTPUT_DIR/avatar_generation.log"
+    if [ "$VERBOSE" = true ]; then
+        ./scripts/campaigns/run_heygen_demo.sh \
+            --brief "$BRIEF_FILE" \
+            --verbose 2>&1 | tee "$OUTPUT_DIR/avatar_generation.log"
+    else
+        ./scripts/campaigns/run_heygen_demo.sh \
+            --brief "$BRIEF_FILE" 2>&1 | tee "$OUTPUT_DIR/avatar_generation.log"
+    fi
     
     # Find the generated avatar video (run_heygen_demo.sh outputs to outputs/heygen/)
     HEYGEN_OUTPUT_DIR="$OUTPUTS_DIR/heygen"
@@ -180,8 +185,14 @@ generate_products_video() {
     
     # Run video demo script (target region comes from brief.json)
     cd "$PROJECT_ROOT"
-    ./scripts/campaigns/run_video_demo.sh \
-        --brief "$BRIEF_FILE" 2>&1 | tee "$OUTPUT_DIR/products_generation.log"
+    if [ "$VERBOSE" = true ]; then
+        ./scripts/campaigns/run_video_demo.sh \
+            --brief "$BRIEF_FILE" \
+            --verbose 2>&1 | tee "$OUTPUT_DIR/products_generation.log"
+    else
+        ./scripts/campaigns/run_video_demo.sh \
+            --brief "$BRIEF_FILE" 2>&1 | tee "$OUTPUT_DIR/products_generation.log"
+    fi
     
     # Find the generated video file (run_video_demo.sh outputs to different locations)
     # For single product: outputs/video/Product_Name_video.mp4

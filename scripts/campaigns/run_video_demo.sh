@@ -15,6 +15,7 @@ BRAND_CONFIG="$PROJECT_ROOT/configs/brand_config.json"
 
 # Default brief file
 BRIEF_FILE="$PROJECT_ROOT/configs/brief.json"
+VERBOSE=""
 
 # Google Drive integration flags (infrastructure settings, not campaign content)
 UPLOAD_TO_DRIVE=false
@@ -27,6 +28,10 @@ while [[ $# -gt 0 ]]; do
         --brief)
             BRIEF_FILE="$2"
             shift 2
+            ;;
+        --verbose)
+            VERBOSE="--verbose"
+            shift
             ;;
         --upload-to-drive)
             UPLOAD_TO_DRIVE=true
@@ -48,6 +53,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --brief FILE              Path to brief.json (default: configs/brief.json)"
+            echo "  --verbose                 Enable verbose debug output"
             echo "  --upload-to-drive         Enable Google Drive upload"
             echo "  --drive-service-account   Google service account JSON path"
             echo "  --drive-folder-id         Google Drive folder ID for upload"
@@ -102,20 +108,20 @@ try:
     campaign_message = brief.get('campaign_message', 'Start your day smarter with our kitchen essentials')
     target_language = brief.get('target_language', 'en')
     
-    print(f'PRODUCT_COUNT={len(products)}')
-    print(f'PRODUCTS={','.join(products)}')
-    print(f'TARGET_REGION={target_region}')
-    print(f'AUDIENCE={audience}')
-    print(f'CAMPAIGN_MESSAGE={campaign_message}')
-    print(f'TARGET_LANGUAGE={target_language}')
+    print("PRODUCT_COUNT=" + str(len(products)))
+    print("PRODUCTS=" + ",".join(products))
+    print("TARGET_REGION=" + target_region)
+    print("AUDIENCE=" + audience)
+    print("CAMPAIGN_MESSAGE=" + campaign_message)
+    print("TARGET_LANGUAGE=" + target_language)
     
     # Check for campaign_video_message
     if 'campaign_video_message' in brief:
         video_msg = brief['campaign_video_message'].replace('\n', ' ')
-        print(f'CAMPAIGN_VIDEO_MESSAGE={video_msg}')
+        print("CAMPAIGN_VIDEO_MESSAGE=" + video_msg)
         
 except Exception as e:
-    print(f'ERROR loading brief: {e}')
+    print("ERROR loading brief: " + str(e))
     sys.exit(1)
 ")
 
@@ -217,6 +223,11 @@ run_single_product_video() {
         CMD_ARGS+=("--drive-service-account" "$DRIVE_SERVICE_ACCOUNT")
         CMD_ARGS+=("--drive-folder-id" "$DRIVE_FOLDER_ID")
         CMD_ARGS+=("--keep-local")
+    fi
+
+    # Add verbose flag if enabled
+    if [ -n "$VERBOSE" ]; then
+        CMD_ARGS+=("$VERBOSE")
     fi
     
     # Run the command
