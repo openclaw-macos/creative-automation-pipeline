@@ -233,7 +233,7 @@ Six ready‑to‑run campaign briefs are included in `configs/examples/` coverin
 ./run_campaign_demo.sh --brief configs/examples/3_Premium_Personal_Care_Japan/brief.json
 
 # Or test localization with all regions
-./run_localization_demo.sh
+./scripts/tests/test_localization_demo.sh
 ```
 
 **Note:** Region‑to‑language mapping is hardcoded in `src/localization.py`; `target_language` in brief.json is optional. Missing fields (e.g., `campaign_video_message`) fall back gracefully.
@@ -279,11 +279,11 @@ creative-automation-pipeline/
 │   ├── tests/
 │   │   ├── test_*.sh                   # Individual test scripts
 │   │   └── run_tests_with_reports.sh   # Test runner with timestamped reports
+│   ├── timestamp_utils.sh          # Bash timestamp utilities (YYYYMMDD_HHMM format)
+│   ├── test_campaign_template.sh   # Campaign testing template with timestamped reports
+│   ├── cleanup.sh                  # Output organization and cleanup utility
 │   └── utils/
-│       ├── fix_permissions.sh          # Utility script
-│       ├── timestamp_utils.sh          # Bash timestamp utilities (YYYYMMDD_HHMM format)
-│       ├── test_campaign_template.sh   # Campaign testing template with timestamped reports
-│       └── cleanup.sh                  # Output organization and cleanup utility
+│       └── fix_permissions.sh      # Utility script
 └── docs/
     ├── demo_script.md         # 3‑minute video script (proof‑of‑concept demo)
     ├── video_walkthrough_script.md # 4‑5 minute technical walk‑through
@@ -457,7 +457,7 @@ For single-command execution of the entire 5-step sequence, use the master orche
 ./scripts/campaigns/run_youtube_heygen_products_demo.sh --brief configs/brief.json --secrets /path/to/client_secrets.json
 ```
 
-### **run_localization_demo.sh** – Localization Testing
+### **test_localization_demo.sh** – Localization Testing
 ```bash
 # Test all 6 region localizations (now in tests folder)
 ./scripts/tests/test_localization_demo.sh
@@ -784,5 +784,5 @@ Built for internal demonstration and production‑ready campaign automation.
 
 ---
 
-**Last Updated:** March 25, 2026 (Enhanced logging system with 5-stage tracking)  
+**Last Updated:** March 26, 2026 (Enhanced logging system with 5-stage tracking)  
 **Version:** 2.3 – Enhanced logging system with 5-stage campaign tracking
