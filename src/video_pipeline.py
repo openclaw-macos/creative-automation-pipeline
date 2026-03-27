@@ -81,11 +81,19 @@ class VideoPipeline:
         # Initialize localization
         self.localization = None
         if LOCALIZATION_AVAILABLE:
-            self.localization = Localization(use_mock=True)  # Use mock for POC
+            # Determine language code first (using mock translation)
+            temp_localization = Localization(use_mock=True)
             if language_code is None:
-                self.language_code = self.localization.get_language_code(target_region)
+                self.language_code = temp_localization.get_language_code(target_region)
             else:
                 self.language_code = language_code
+            
+            # Use real translation for all non‑English campaigns (user preference)
+            use_mock = self.language_code == "en"
+            if not use_mock:
+                log_info(f"Auto‑enabling real translation for non‑English campaign ({self.language_code})")
+            
+            self.localization = Localization(use_mock=use_mock, translation_api="libre")
             self.voice_code = self.localization.get_voice_code(self.language_code)
         else:
             self.language_code = "en"
@@ -326,6 +334,18 @@ class VideoPipeline:
         """
         if language is None:
             language = self.language_code
+        
+        # Translate text if needed (non‑English campaigns)
+        original_text = text
+        if language != "en" and self.localization is not None:
+            try:
+                text = self.localization.translate_text(text, "auto", language)
+                log_info(f"Translated voiceover text to {language}: '{original_text[:50]}...' → '{text[:50]}...'")
+            except Exception as e:
+                log_warning(f"Translation failed for voiceover: {e}, using original text")
+                text = original_text
+        elif language != "en" and self.localization is None:
+            log_warning(f"Cannot translate to {language}: localization not available")
         
         # Try Voicebox TTS first
         try:
