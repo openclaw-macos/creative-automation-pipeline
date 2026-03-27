@@ -11,3 +11,4 @@ google-auth-oauthlib>=1.0.0
 # Translation APIs (free options: LibreTranslate, Google Translate, MyMemory)
 # No additional packages needed beyond requests
 # SQLite3 is built-in
+# Optional TTS fallback: edge-tts (install with: pip install edge-tts)

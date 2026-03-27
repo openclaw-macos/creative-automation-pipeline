@@ -92,7 +92,7 @@ $pip_cmd list | grep -E "(pillow|opencv|numpy|requests)" || echo "⚠️ Require
 | Dependency | Status Check | Actual Status | Simulation Alternative | Test Impact |
 |------------|--------------|---------------|------------------------|-------------|
 | **ComfyUI** | `curl -s http://127.0.0.1:8188/prompt` | ✅ Running (`{"exec_info": {"queue_remaining": 0}}`) | Image generation uses placeholder | Step 1 (images) – simulation creates `.placeholder` files |
-| **Voicebox** | `curl -s http://127.0.0.1:17493/health` | ✅ Running (`{"status":"healthy",...}`) | Voice synthesis skipped | Step 2 (video) – uses silent video or mock audio |
+| **Voicebox** | `curl -s http://127.0.0.1:17493/health` | ✅ Running (`{"status":"healthy",...}`) | Edge TTS fallback (if installed) or silent audio | Step 2 (video) – uses Edge TTS, silent audio, or mock audio |
 | **HeyGen API** | API key in env/argument | Not tested (simulation available) | `--simulate` flag | Steps 3‑4 – mock avatar generation, video combination still works |
 | **Google Drive** | Service account JSON | Not tested (simulation available) | Skip with `--simulate` | Optional upload – not required for core pipeline |
 | **YouTube OAuth** | `client_secrets.json` | Not tested (simulation available) | `--simulate` flag | Step 5 – simulation outputs metadata without real upload |

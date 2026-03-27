@@ -42,8 +42,21 @@ cd creative-automation-pipeline
   
   # Restart Voicebox.app
   ```
-  Check Activity Monitor → Energy tab → ensure "App Nap" column says "No" for Voicebox.  
-  You can use other TTS services by modifying `src/video_pipeline.py`.
+  Check Activity Monitor → Energy tab → ensure "App Nap" column says "No" for Voicebox.
+
+- **Edge TTS** (optional fallback) – a Python package that uses Microsoft Edge's neural TTS voices. If Voicebox is unavailable, the pipeline will automatically try Edge TTS. **Installation:**
+  ```bash
+  pip install edge-tts
+  ```
+  The pipeline includes built‑in support for Edge TTS with language‑specific neural voices:
+  - English (en): `en-US-AriaNeural`
+  - German (de): `de-DE-KatjaNeural`
+  - Japanese (ja): `ja-JP-NanamiNeural`
+  - Arabic (ar): `ar-SA-HamedNeural`
+  - Portuguese (pt): `pt-BR-FranciscaNeural`
+  - Swedish (sv): `sv-SE-SofieNeural`
+  
+  Edge TTS requires an internet connection and uses Microsoft's cloud TTS service via the Edge browser API. Voice quality is high but latency depends on network speed.
 
 **Optional Cloud Services:**
 - **Google Drive API** credentials (optional, for cloud storage) – create a service account and download the JSON key. Place it at `~/google_serviceaccount/service_account.json` or update the path in `src/comfyui_generate.py`.
@@ -112,6 +125,8 @@ Before running any campaign, verify each component works:
    
    # Check Activity Monitor → Energy tab → "App Nap" column for Voicebox should say "No"
    ```
+   
+   **Note:** If Voicebox is unavailable, the pipeline will automatically try Edge TTS (requires `pip install edge-tts`). Edge TTS uses Microsoft's cloud neural voices and requires an internet connection.
 
 6. **Test minimal generation (without compliance):**
    ```bash
