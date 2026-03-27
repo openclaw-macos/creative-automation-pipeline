@@ -260,6 +260,8 @@ class Localization:
             response.raise_for_status()  # Raise HTTPError for bad status codes
             result = response.json()
             translated = result.get("translatedText", text)
+            if translated == text:
+                raise ValueError(f"LibreTranslate returned unchanged text for '{text[:50]}...' (likely API failure)")
             if translated != text:
                 log_info(f"LibreTranslate successful: '{text[:50]}...' → '{translated[:50]}...'")
             return translated
@@ -285,17 +287,21 @@ class Localization:
             response.raise_for_status()  # Raise HTTPError for bad status codes
             result = response.json()
             # Google returns nested structure
-            if result and len(result) > 0 and result[0]:
-                # Extract translation from nested arrays
-                translated_parts = []
-                for part in result[0]:
-                    if part and len(part) > 0:
-                        translated_parts.append(part[0])
-                translated = "".join(translated_parts) if translated_parts else text
-                if translated != text:
-                    log_info(f"Google Translate successful: '{text[:50]}...' → '{translated[:50]}...'")
-                return translated
-            return text
+            if not result or len(result) == 0 or not result[0]:
+                raise ValueError("Google Translate returned empty result")
+            
+            # Extract translation from nested arrays
+            translated_parts = []
+            for part in result[0]:
+                if part and len(part) > 0:
+                    translated_parts.append(part[0])
+            translated = "".join(translated_parts) if translated_parts else text
+            
+            if translated == text:
+                raise ValueError(f"Google Translate returned unchanged text for '{text[:50]}...'")
+            
+            log_info(f"Google Translate successful: '{text[:50]}...' → '{translated[:50]}...'")
+            return translated
         except Exception as e:
             log_warning(f"Google Translate request failed: {e}")
             return text
