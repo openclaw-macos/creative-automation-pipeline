@@ -100,7 +100,7 @@ load_brief() {
         # Remove quotes from value if present
         value="${value%\"}"
         value="${value#\"}"
-        declare -g "$key"="$value"
+        eval "$key=\"$value\""
     done < <(python3 -c "
 import sys, json
 sys.path.append('$SRC_DIR')
@@ -141,10 +141,10 @@ except Exception as e:
     # Create PRODUCT_ARRAY from PRODUCTS_LIST using unit separator
     OLD_IFS=$IFS
     IFS=$'\x1f'
-    declare -g PRODUCT_ARRAY=($PRODUCTS_LIST)
+    PRODUCT_ARRAY=($PRODUCTS_LIST)
     IFS=$OLD_IFS
     
-    declare -g BRIEF_NAME=$(basename "$BRIEF_FILE" .json)
+    BRIEF_NAME=$(basename "$BRIEF_FILE" .json)
     
     echo "✅ Campaign loaded:"
     echo "   Products: $PRODUCTS"
