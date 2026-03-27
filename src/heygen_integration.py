@@ -232,6 +232,9 @@ class HeyGenIntegration:
             response.raise_for_status()
             
             data = response.json()
+            log_debug(f"DEBUG: API Response keys: {list(data.keys())}")
+            if "data" in data:
+                log_debug(f"DEBUG: data keys: {list(data['data'].keys())}")
             
             if "data" not in data:
                 return {
@@ -254,6 +257,7 @@ class HeyGenIntegration:
                 }
             
             log_success(f"Video generation started. Task ID: {task_id}")
+            log_debug(f"DEBUG: video_url present: {'video_url' in data_response}")
             
             # Wait for video to be ready and download
             if video_url:
@@ -289,40 +293,72 @@ class HeyGenIntegration:
             Dictionary with success status and video path
         """
         max_attempts = 60  # 5 minutes max
-        url = f"{self.base_url}/v2/video/{task_id}"
+        # Possible polling endpoints for HeyGen v2 API
+        polling_patterns = [
+            f"{self.base_url}/v2/video/{task_id}",
+            f"{self.base_url}/v2/videos/{task_id}",
+            f"{self.base_url}/v2/tasks/{task_id}",
+            f"{self.base_url}/v2/video/{task_id}/status",
+            f"{self.base_url}/v2/videos/{task_id}/status",
+        ]
         
         log_info(f"Polling for video completion (max {max_attempts * poll_interval}s)...")
         
         for attempt in range(max_attempts):
-            try:
-                response = requests.get(url, headers=self.headers, timeout=30)
-                response.raise_for_status()
-                data = response.json()
-                
-                status = data.get("data", {}).get("status")
-                video_url = data.get("data", {}).get("video_url")
-                
-                if status == "completed" and video_url:
-                    log_success(f"Video completed on attempt {attempt + 1}")
-                    return self._download_video(video_url, output_path, task_id)
-                elif status == "failed":
-                    return {
-                        "success": False,
-                        "error": "Video generation failed",
-                        "task_id": task_id,
-                        "status": status
-                    }
-                elif status == "processing":
-                    if attempt % 6 == 0:  # Print every 30 seconds
-                        log_info(f"  Still processing... ({attempt * poll_interval}s elapsed)")
-                    time.sleep(poll_interval)
-                else:
-                    log_warning(f"  Unknown status: {status}, waiting...")
-                    time.sleep(poll_interval)
+            # Try each polling pattern until we find one that works
+            for pattern_index, url in enumerate(polling_patterns):
+                try:
+                    response = requests.get(url, headers=self.headers, timeout=30)
+                    response.raise_for_status()
+                    data = response.json()
+                    log_debug(f"DEBUG: Polling response keys: {list(data.keys())}")
+                    if "data" in data:
+                        log_debug(f"DEBUG: data dict keys: {list(data['data'].keys())}")
                     
-            except Exception as e:
-                log_warning(f"  Poll error: {e}, retrying...")
-                time.sleep(poll_interval)
+                    status = data.get("data", {}).get("status")
+                    video_url = data.get("data", {}).get("video_url")
+                    
+                    if status == "completed" and video_url:
+                        log_success(f"Video completed on attempt {attempt + 1}")
+                        return self._download_video(video_url, output_path, task_id)
+                    elif status == "failed":
+                        return {
+                            "success": False,
+                            "error": "Video generation failed",
+                            "task_id": task_id,
+                            "status": status
+                        }
+                    elif status == "processing":
+                        if attempt % 6 == 0:  # Print every 30 seconds
+                            log_info(f"  Still processing... ({attempt * poll_interval}s elapsed)")
+                        # Found working pattern, use it for next poll
+                        # Update polling_patterns to only use this working pattern
+                        polling_patterns = [url]
+                        time.sleep(poll_interval)
+                        break  # Break out of pattern loop, continue to next attempt
+                    else:
+                        log_warning(f"  Unknown status: {status}, waiting...")
+                        time.sleep(poll_interval)
+                        break  # Use same pattern next time
+                        
+                except requests.exceptions.HTTPError as e:
+                    if e.response.status_code == 404:
+                        # Try next pattern
+                        if pattern_index < len(polling_patterns) - 1:
+                            log_debug(f"  Endpoint 404, trying next pattern...")
+                            continue
+                        else:
+                            log_warning(f"  All polling endpoints returned 404, retrying...")
+                            time.sleep(poll_interval)
+                            break
+                    else:
+                        log_warning(f"  HTTP error: {e}, retrying...")
+                        time.sleep(poll_interval)
+                        break
+                except Exception as e:
+                    log_warning(f"  Poll error: {e}, retrying...")
+                    time.sleep(poll_interval)
+                    break
         
         return {
             "success": False,
