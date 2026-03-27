@@ -270,43 +270,45 @@ concatenate_videos() {
     has_audio_avatar=$(ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 "$avatar_video" 2>/dev/null | head -1)
     has_audio_products=$(ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 "$products_video" 2>/dev/null | head -1)
     
-    # Prepare temporary files if needed
-    AVATAR_VIDEO_TO_USE="$avatar_video"
-    PRODUCTS_VIDEO_TO_USE="$products_video"
+    # Prepare and Concatenate Videos
+    echo "  Standardizing frame rates and merging segments..."
     
-    if [ -z "$has_audio_avatar" ] || [ -z "$has_audio_products" ]; then
-        echo "  One or both videos lack audio, ensuring both have audio streams..."
-        TEMP_DIR=$(mktemp -d)
+    # We use a complex filter to ensure both videos are normalized to 30fps
+    # and have the exact same resolution/codec/pixel format to prevent "freezing"
+    # Logic: 
+    # [v0][a0] = Avatar processed to 1080p, 30fps, 44.1k Stereo
+    # [v1][a1] = Products processed to 1080p, 30fps, 44.1k Stereo
+    # Output piped to both the final file and concatenation.log
+    
+    ffmpeg -hide_banner -loglevel info -y \
+      -i "$avatar_video" -i "$products_video" \
+      -filter_complex \
+      "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p[v0]; \
+       [1:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p[v1]; \
+       [0:a]aformat=sample_rates=44100:channel_layouts=stereo[a0]; \
+       [1:a]aformat=sample_rates=44100:channel_layouts=stereo[a1]; \
+       [v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]" \
+      -map "[v]" -map "[a]" \
+      -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k \
+      "$output_video" 2>&1 | tee "$OUTPUT_DIR/concatenation.log"
+
+    # Capture ffmpeg exit status from the pipe
+    FFMPEG_EXIT=${PIPESTATUS[0]}
+
+    if [ $FFMPEG_EXIT -eq 0 ] && [ -f "$output_video" ]; then
+        echo "✅ Combined video created: $output_video"
+        echo "   Log available at: $OUTPUT_DIR/concatenation.log"
+    else
+        # Only enter here if the exit code was non-zero
+        echo "❌ Concatenation failed with exit code $FFMPEG_EXIT."
+        echo "   See log for details: $OUTPUT_DIR/concatenation.log"
         
-        # Ensure avatar video has audio
-        if [ -z "$has_audio_avatar" ]; then
-            TEMP_AVATAR="$TEMP_DIR/avatar_with_audio.mp4"
-            ffmpeg -i "$avatar_video" -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 \
-                   -c:v copy -c:a aac -shortest -map 0:v -map 1:a "$TEMP_AVATAR" 2>/dev/null
-            if [ -f "$TEMP_AVATAR" ]; then
-                AVATAR_VIDEO_TO_USE="$TEMP_AVATAR"
-                echo "    Added silent audio to avatar video"
-            fi
+        # Log failure to database if reporting is available
+        if [[ $(type -t log_failure_to_db) == function ]]; then
+             log_failure_to_db "$FFMPEG_EXIT" "ffmpeg concatenation failed"
         fi
-        
-        # Ensure products video has audio
-        if [ -z "$has_audio_products" ]; then
-            TEMP_PRODUCTS="$TEMP_DIR/products_with_audio.mp4"
-            ffmpeg -i "$products_video" -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 \
-                   -c:v copy -c:a aac -shortest -map 0:v -map 1:a "$TEMP_PRODUCTS" 2>/dev/null
-            if [ -f "$TEMP_PRODUCTS" ]; then
-                PRODUCTS_VIDEO_TO_USE="$TEMP_PRODUCTS"
-                echo "    Added silent audio to products video"
-            fi
-        fi
-        
-        # Update concat list with possibly modified videos
-        echo "file '$AVATAR_VIDEO_TO_USE'" > "$CONCAT_LIST"
-        echo "file '$PRODUCTS_VIDEO_TO_USE'" >> "$CONCAT_LIST"
+        exit 1
     fi
-    
-    # Concatenate videos (preserve audio streams)
-    ffmpeg -f concat -safe 0 -i "$CONCAT_LIST" -c copy "$output_video" 2>&1 | tee "$OUTPUT_DIR/concatenation.log"
     
     # Clean up temporary files
     if [ -n "$TEMP_DIR" ] && [ -d "$TEMP_DIR" ]; then

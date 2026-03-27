@@ -112,7 +112,18 @@ try:
     target_region = brief.get('target_region', 'USA')
     audience = brief.get('audience', 'Young professionals 25-35')
     campaign_message = brief.get('campaign_message', 'Start your day smarter with our kitchen essentials')
-    target_language = brief.get('target_language', 'en')
+    # Get target_language from brief or map region to language
+    target_language = brief.get('target_language')
+    if target_language is None:
+        try:
+            from localization import Localization
+            loc = Localization(use_mock=True)
+            target_language = loc.get_language_code(target_region)
+        except ImportError:
+            target_language = 'en'
+    # Ensure we have a valid language code
+    if not target_language:
+        target_language = 'en'
     
     # Use unit separator (0x1F) for products - won't appear in product names
     print('PRODUCTS_LIST=' + '\x1f'.join(products))
