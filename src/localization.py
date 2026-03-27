@@ -193,7 +193,17 @@ class Localization:
         # Use actual translation API
         try:
             if self.translation_api == "libre":
-                return self._translate_libre(text, source_lang, target_lang)
+                # Try LibreTranslate first
+                try:
+                    return self._translate_libre(text, source_lang, target_lang)
+                except Exception as e:
+                    log_warning(f"LibreTranslate failed: {e}, trying Google Translate")
+                    # Fall back to Google Translate
+                    try:
+                        return self._translate_google(text, source_lang, target_lang)
+                    except Exception as e2:
+                        log_warning(f"Google Translate also failed: {e2}, using mock translation")
+                        return self._mock_translate(text, target_lang)
             elif self.translation_api == "google":
                 return self._translate_google(text, source_lang, target_lang)
             elif self.translation_api == "mymemory":
@@ -247,12 +257,9 @@ class Localization:
                 timeout=10
             )
             
-            if response.status_code == 200:
-                result = response.json()
-                return result.get("translatedText", text)
-            else:
-                log_warning(f"LibreTranslate API error: {response.status_code}")
-                return text
+            response.raise_for_status()  # Raise HTTPError for bad status codes
+            result = response.json()
+            return result.get("translatedText", text)
         except Exception as e:
             log_warning(f"LibreTranslate request failed: {e}")
             return text
@@ -272,16 +279,16 @@ class Localization:
         
         try:
             response = requests.get(url, timeout=10)
-            if response.status_code == 200:
-                result = response.json()
-                # Google returns nested structure
-                if result and len(result) > 0 and result[0]:
-                    # Extract translation from nested arrays
-                    translated_parts = []
-                    for part in result[0]:
-                        if part and len(part) > 0:
-                            translated_parts.append(part[0])
-                    return "".join(translated_parts) if translated_parts else text
+            response.raise_for_status()  # Raise HTTPError for bad status codes
+            result = response.json()
+            # Google returns nested structure
+            if result and len(result) > 0 and result[0]:
+                # Extract translation from nested arrays
+                translated_parts = []
+                for part in result[0]:
+                    if part and len(part) > 0:
+                        translated_parts.append(part[0])
+                return "".join(translated_parts) if translated_parts else text
             return text
         except Exception as e:
             log_warning(f"Google Translate request failed: {e}")
