@@ -181,16 +181,29 @@ class HeyGenIntegration:
             search_terms = language_names.get(language_code.lower(), [language_code.lower()])
             
             # Search for voices matching language
+            # First, check for exact word matches (e.g., "japanese" as a whole word)
+            for voice in voices:
+                voice_name = voice.get("name", "").lower()
+                voice_words = voice_name.split()  # Split into words
+                
+                # Check if any search term matches a whole word
+                for term in search_terms:
+                    if term in voice_words:  # Exact word match
+                        voice_id = voice.get("voice_id")
+                        log_info(f"Found voice '{voice_name}' (exact word match) for language '{language_code}'")
+                        return voice_id
+            
+            # If no exact word match, check for substring match (fallback)
             for voice in voices:
                 voice_name = voice.get("name", "").lower()
                 for term in search_terms:
-                    if term in voice_name:
+                    if term in voice_name:  # Substring match (e.g., "ja" in "james")
                         voice_id = voice.get("voice_id")
-                        log_debug(f"Found voice '{voice_name}' for language '{language_code}'")
+                        log_info(f"Found voice '{voice_name}' (substring match) for language '{language_code}'")
                         return voice_id
             
             # If no voice found by name, try static mapping
-            log_debug(f"No voice found by name for language '{language_code}', using static mapping")
+            log_warning(f"No voice found by name for language '{language_code}', using static mapping")
             voice_id = self.language_voice_mapping.get(language_code.lower())
             if voice_id:
                 return voice_id

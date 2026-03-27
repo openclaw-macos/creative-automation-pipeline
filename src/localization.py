@@ -259,7 +259,10 @@ class Localization:
             
             response.raise_for_status()  # Raise HTTPError for bad status codes
             result = response.json()
-            return result.get("translatedText", text)
+            translated = result.get("translatedText", text)
+            if translated != text:
+                log_info(f"LibreTranslate successful: '{text[:50]}...' → '{translated[:50]}...'")
+            return translated
         except Exception as e:
             log_warning(f"LibreTranslate request failed: {e}")
             return text
@@ -288,7 +291,10 @@ class Localization:
                 for part in result[0]:
                     if part and len(part) > 0:
                         translated_parts.append(part[0])
-                return "".join(translated_parts) if translated_parts else text
+                translated = "".join(translated_parts) if translated_parts else text
+                if translated != text:
+                    log_info(f"Google Translate successful: '{text[:50]}...' → '{translated[:50]}...'")
+                return translated
             return text
         except Exception as e:
             log_warning(f"Google Translate request failed: {e}")
@@ -312,7 +318,10 @@ class Localization:
             if response.status_code == 200:
                 result = response.json()
                 if "responseData" in result and "translatedText" in result["responseData"]:
-                    return result["responseData"]["translatedText"]
+                    translated = result["responseData"]["translatedText"]
+                    if translated != text:
+                        log_info(f"MyMemory Translation successful: '{text[:50]}...' → '{translated[:50]}...'")
+                    return translated
             return text
         except Exception as e:
             log_warning(f"MyMemory Translation request failed: {e}")
