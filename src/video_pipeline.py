@@ -32,6 +32,14 @@ except ImportError:
     OPENCV_AVAILABLE = False
     log_warning("OpenCV not available. Using PIL fallback for video processing.")
 
+# Try to import Edge TTS for fallback
+try:
+    import edge_tts
+    EDGE_TTS_AVAILABLE = True
+except ImportError:
+    EDGE_TTS_AVAILABLE = False
+    log_warning("Edge TTS not available. Will use silent audio fallback.")
+
 # Import localization module
 try:
     from .localization import Localization
@@ -297,6 +305,7 @@ class VideoPipeline:
         if language is None:
             language = self.language_code
         
+        # Try Voicebox TTS first
         try:
             # Voicebox API endpoint
             api_url = f"{voicebox_url}/api/tts"
@@ -320,16 +329,51 @@ class VideoPipeline:
                 return output_path
             else:
                 log_warning(f"Voicebox API error: {response.status_code} - {response.text}")
-                # Fallback: create silent audio
-                self._create_silent_audio(output_path, duration=5)
-                return output_path
+                # Voicebox failed, try Edge TTS
+                pass
                 
         except Exception as e:
-            log_warning(f"Voiceover generation failed: {e}")
-            # Fallback: create silent audio
-            self._create_silent_audio(output_path, duration=5)
-            return output_path
-    
+            log_warning(f"Voicebox generation failed: {e}")
+            # Voicebox failed, try Edge TTS
+            pass
+        
+        # Try Edge TTS as fallback
+        if EDGE_TTS_AVAILABLE:
+            try:
+                log_info("Attempting Edge TTS fallback...")
+                import asyncio
+                import edge_tts
+                
+                # Map language code to Edge TTS voice
+                voice_map = {
+                    "en": "en-US-AriaNeural",
+                    "es": "es-ES-AlvaroNeural",
+                    "fr": "fr-FR-DeniseNeural",
+                    "de": "de-DE-KatjaNeural",
+                    "ja": "ja-JP-NanamiNeural",
+                    "zh": "zh-CN-XiaoxiaoNeural"
+                }
+                voice = voice_map.get(language.split("-")[0] if language else "en", "en-US-AriaNeural")
+                
+                # Edge TTS requires async
+                async def generate():
+                    communicate = edge_tts.Communicate(text, voice)
+                    await communicate.save(output_path)
+                
+                asyncio.run(generate())
+                
+                if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                    log_success(f"Edge TTS voiceover saved to {output_path}")
+                    return output_path
+                else:
+                    log_warning("Edge TTS generated empty file")
+            except Exception as e:
+                log_warning(f"Edge TTS generation failed: {e}")
+        
+        # Final fallback: silent audio
+        log_warning("All TTS methods failed, using silent audio fallback")
+        self._create_silent_audio(output_path, duration=5)
+        return output_path
     def create_video(self, image_path: str, audio_path: str, output_path: str,
                     duration_seconds: int = 10) -> str:
         """

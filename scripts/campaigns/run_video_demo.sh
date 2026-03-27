@@ -304,10 +304,21 @@ run_multi_product_campaign() {
     if curl -s http://127.0.0.1:17493/health > /dev/null 2>&1; then
         echo "✅ Voicebox server is accessible"
         VOICEBOX_AVAILABLE=true
+        
+        # Test TTS endpoint specifically
+        echo "Testing Voicebox TTS endpoint..."
+        if curl -s -X POST http://127.0.0.1:17493/api/tts -H "Content-Type: application/json" -d '{"text":"test","speaker_id":"default","language":"en","speed":1.0}' --max-time 5 > /dev/null 2>&1; then
+            echo "✅ Voicebox TTS endpoint is accessible"
+            VOICEBOX_TTS_AVAILABLE=true
+        else
+            echo "⚠️  Voicebox TTS endpoint not responding, will use Edge TTS fallback"
+            VOICEBOX_TTS_AVAILABLE=false
+        fi
     else
         echo "⚠️  Voicebox server not running at http://127.0.0.1:17493"
-        echo "   Video will use silent audio fallback"
+        echo "   Video will use Edge TTS fallback (if installed) or silent audio"
         VOICEBOX_AVAILABLE=false
+        VOICEBOX_TTS_AVAILABLE=false
     fi
     
     echo ""
