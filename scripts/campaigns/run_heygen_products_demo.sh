@@ -266,8 +266,52 @@ concatenate_videos() {
     cat "$CONCAT_LIST"
     echo ""
     
+    # Check if videos have audio streams
+    has_audio_avatar=$(ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 "$avatar_video" 2>/dev/null | head -1)
+    has_audio_products=$(ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 "$products_video" 2>/dev/null | head -1)
+    
+    # Prepare temporary files if needed
+    AVATAR_VIDEO_TO_USE="$avatar_video"
+    PRODUCTS_VIDEO_TO_USE="$products_video"
+    
+    if [ -z "$has_audio_avatar" ] || [ -z "$has_audio_products" ]; then
+        echo "  One or both videos lack audio, ensuring both have audio streams..."
+        TEMP_DIR=$(mktemp -d)
+        
+        # Ensure avatar video has audio
+        if [ -z "$has_audio_avatar" ]; then
+            TEMP_AVATAR="$TEMP_DIR/avatar_with_audio.mp4"
+            ffmpeg -i "$avatar_video" -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 \
+                   -c:v copy -c:a aac -shortest -map 0:v -map 1:a "$TEMP_AVATAR" 2>/dev/null
+            if [ -f "$TEMP_AVATAR" ]; then
+                AVATAR_VIDEO_TO_USE="$TEMP_AVATAR"
+                echo "    Added silent audio to avatar video"
+            fi
+        fi
+        
+        # Ensure products video has audio
+        if [ -z "$has_audio_products" ]; then
+            TEMP_PRODUCTS="$TEMP_DIR/products_with_audio.mp4"
+            ffmpeg -i "$products_video" -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 \
+                   -c:v copy -c:a aac -shortest -map 0:v -map 1:a "$TEMP_PRODUCTS" 2>/dev/null
+            if [ -f "$TEMP_PRODUCTS" ]; then
+                PRODUCTS_VIDEO_TO_USE="$TEMP_PRODUCTS"
+                echo "    Added silent audio to products video"
+            fi
+        fi
+        
+        # Update concat list with possibly modified videos
+        echo "file '$AVATAR_VIDEO_TO_USE'" > "$CONCAT_LIST"
+        echo "file '$PRODUCTS_VIDEO_TO_USE'" >> "$CONCAT_LIST"
+    fi
+    
     # Concatenate videos (preserve audio streams)
     ffmpeg -f concat -safe 0 -i "$CONCAT_LIST" -c copy "$output_video" 2>&1 | tee "$OUTPUT_DIR/concatenation.log"
+    
+    # Clean up temporary files
+    if [ -n "$TEMP_DIR" ] && [ -d "$TEMP_DIR" ]; then
+        rm -rf "$TEMP_DIR"
+    fi
     
     if [ ${PIPESTATUS[0]} -eq 0 ] && [ -f "$output_video" ]; then
         echo "✅ Videos concatenated successfully: $output_video"
@@ -297,7 +341,7 @@ try:
             if brief.get('products'):
                 product_name = brief['products'][0]
                 if len(brief['products']) > 1:
-                    product_name = f'Multiple: {", ".join(brief["products"][:2])}'
+                    product_name = f'Multiple: {\", \".join(brief[\"products\"][:2])}'
     except:
         pass
     
@@ -350,7 +394,7 @@ try:
             if brief.get('products'):
                 product_name = brief['products'][0]
                 if len(brief['products']) > 1:
-                    product_name = f'Multiple: {", ".join(brief["products"][:2])}'
+                    product_name = f'Multiple: {\", \".join(brief[\"products\"][:2])}'
     except:
         pass
     
