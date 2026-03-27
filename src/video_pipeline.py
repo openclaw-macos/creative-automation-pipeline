@@ -92,7 +92,18 @@ class VideoPipeline:
             self.voice_code = "en-US"
             log_warning("Localization not available, using English defaults")
         
-        self.logo_path = self.config.get("logo_path", "")
+        # Resolve logo path relative to brand config file
+        logo_path_raw = self.config.get("logo_path", "")
+        if logo_path_raw:
+            if os.path.isabs(logo_path_raw):
+                self.logo_path = logo_path_raw
+            else:
+                # Resolve relative to brand config file location
+                config_dir = os.path.dirname(self.brand_config_path)
+                self.logo_path = os.path.abspath(os.path.join(config_dir, logo_path_raw))
+        else:
+            self.logo_path = ""
+        
         self.text_settings = self.config.get("text_overlay_settings", {})
         self.video_settings = self.config.get("video_settings", {})
         self.logo_settings = self.config.get("logo_check_settings", {})
@@ -110,7 +121,18 @@ class VideoPipeline:
         
         self.fps = self.video_settings.get("fps", 30)
         self.resolution = self.video_settings.get("resolution", "1920x1080")
-        self.background_music = self.video_settings.get("background_music", "")
+        
+        # Resolve background music path relative to brand config file
+        bgm_path_raw = self.video_settings.get("background_music", "")
+        if bgm_path_raw:
+            if os.path.isabs(bgm_path_raw):
+                self.background_music = bgm_path_raw
+            else:
+                # Resolve relative to brand config file location
+                config_dir = os.path.dirname(self.brand_config_path)
+                self.background_music = os.path.abspath(os.path.join(config_dir, bgm_path_raw))
+        else:
+            self.background_music = ""
         
         # Parse resolution
         if "x" in self.resolution:

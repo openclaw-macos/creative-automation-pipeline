@@ -288,7 +288,7 @@ run_multi_product_campaign() {
     mkdir -p "$CAMPAIGN_OUTPUTS_DIR/images/with_logo_and_textoverlay"
     mkdir -p "$CAMPAIGN_OUTPUTS_DIR/video"
     mkdir -p "$CAMPAIGN_OUTPUTS_DIR/audio"
-    mkdir -p "$CAMPAIGN_OUTPUTS_DIR/logs"
+
     
     # Check if ComfyUI server is running
     echo "Checking ComfyUI server connectivity..."
@@ -605,7 +605,7 @@ try:
             audio_path, 
             video_path,
             duration_per_image=10,  # 10 seconds per image (was 5)
-            transition_duration=2.0  # 2 second crossfade (was 1.0)
+            transition_duration=1.0  # 1 second crossfade (was 2.0)
         )
         
         if os.path.exists(video_path):
