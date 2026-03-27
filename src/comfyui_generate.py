@@ -238,7 +238,7 @@ def generate_video(
         
         # Step 3: Generate voiceover
         audio_path = os.path.join(video_output_dir, f"{product_name}_voiceover.mp3")
-        pipeline.generate_voiceover(campaign_message, audio_path)
+        pipeline.generate_voiceover(campaign_message, audio_path, duration=10)
         
         # Step 4: Create video
         video_path = os.path.join(video_output_dir, f"{product_name}_video.mp4")

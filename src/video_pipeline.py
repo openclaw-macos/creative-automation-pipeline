@@ -321,7 +321,8 @@ class VideoPipeline:
     
     def generate_voiceover(self, text: str, output_path: str, 
                           voicebox_url: str = "http://127.0.0.1:17493",
-                          language: str = None) -> Optional[str]:
+                          language: str = None,
+                          duration: float = None) -> Optional[str]:
         """
         Generate voiceover using Voicebox TTS with language support.
         Returns path to audio file if successful.
@@ -331,6 +332,7 @@ class VideoPipeline:
             output_path: Path to save audio file
             voicebox_url: Voicebox TTS server URL
             language: Language code (e.g., "en", "ja"). If None, uses pipeline's language_code
+            duration: Duration in seconds for silent audio fallback (default: 5.0)
         """
         if language is None:
             language = self.language_code
@@ -414,7 +416,8 @@ class VideoPipeline:
         
         # Final fallback: silent audio
         log_warning("All TTS methods failed, using silent audio fallback")
-        self._create_silent_audio(output_path, duration=5)
+        silent_duration = 5.0 if duration is None else float(duration)
+        self._create_silent_audio(output_path, duration=silent_duration)
         return output_path
     def create_video(self, image_path: str, audio_path: str, output_path: str,
                     duration_seconds: int = 10) -> str:
@@ -530,7 +533,7 @@ class VideoPipeline:
         
         return f"{scale_crop},{fade_in},{fade_out}"
     
-    def _create_silent_audio(self, output_path: str, duration: int = 5) -> str:
+    def _create_silent_audio(self, output_path: str, duration: float = 5.0) -> str:
         """Create silent audio as fallback."""
         cmd = [
             "ffmpeg",
@@ -824,7 +827,7 @@ def main():
     
     # Generate voiceover
     audio_path = os.path.join(args.output_dir, "voiceover.mp3")
-    pipeline.generate_voiceover(args.text, audio_path)
+    pipeline.generate_voiceover(args.text, audio_path, duration=10)
     
     # Create video
     video_path = os.path.join(args.output_dir, "final_video.mp4")

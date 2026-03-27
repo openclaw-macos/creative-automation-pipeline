@@ -173,6 +173,7 @@ class Localization:
     def translate_text(self, text: str, source_lang: str = "auto", target_lang: str = "en") -> str:
         """
         Translate text using selected translation API or mock translation.
+        Priority: 1) pre-translated phrases, 2) translation API, 3) mock translation.
         
         Args:
             text: Text to translate
@@ -186,8 +187,24 @@ class Localization:
         if source_lang != "auto" and source_lang == target_lang:
             return text
         
-        # Use mock translation if enabled
+        # First, check pre-translated phrases (COMMON_PHRASES) regardless of use_mock
+        if target_lang in self.COMMON_PHRASES:
+            phrases = self.COMMON_PHRASES[target_lang]
+            # Check if exact phrase exists
+            if text in phrases:
+                log_info(f"Using pre-translated phrase for '{text[:50]}...'")
+                return phrases[text]
+            
+            # Check for partial matches (for longer texts)
+            for phrase, translation in phrases.items():
+                if phrase in text:
+                    # Replace the phrase in the text
+                    log_info(f"Using pre-translated partial phrase for '{text[:50]}...'")
+                    return text.replace(phrase, translation)
+        
+        # If pre-translated not found and mock translation is enabled, fall back to mock translation
         if self.use_mock:
+            log_info(f"No pre-translated phrase found for '{text[:50]}...', using mock translation")
             return self._mock_translate(text, target_lang)
         
         # Use actual translation API

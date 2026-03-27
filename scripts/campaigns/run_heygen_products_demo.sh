@@ -298,25 +298,6 @@ concatenate_videos() {
     if [ $FFMPEG_EXIT -eq 0 ] && [ -f "$output_video" ]; then
         echo "✅ Combined video created: $output_video"
         echo "   Log available at: $OUTPUT_DIR/concatenation.log"
-    else
-        # Only enter here if the exit code was non-zero
-        echo "❌ Concatenation failed with exit code $FFMPEG_EXIT."
-        echo "   See log for details: $OUTPUT_DIR/concatenation.log"
-        
-        # Log failure to database if reporting is available
-        if [[ $(type -t log_failure_to_db) == function ]]; then
-             log_failure_to_db "$FFMPEG_EXIT" "ffmpeg concatenation failed"
-        fi
-        exit 1
-    fi
-    
-    # Clean up temporary files
-    if [ -n "$TEMP_DIR" ] && [ -d "$TEMP_DIR" ]; then
-        rm -rf "$TEMP_DIR"
-    fi
-    
-    if [ ${PIPESTATUS[0]} -eq 0 ] && [ -f "$output_video" ]; then
-        echo "✅ Videos concatenated successfully: $output_video"
         
         # Get video info
         VIDEO_INFO=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height,duration -of csv=p=0 "$output_video")
@@ -373,10 +354,13 @@ except Exception as e:
         
         FINAL_OUTPUT="$output_video"
     else
-        echo "❌ Video concatenation failed"
-        if [ -f "$OUTPUT_DIR/concatenation.log" ]; then
-            echo "Error output:"
-            tail -20 "$OUTPUT_DIR/concatenation.log"
+        # Only enter here if the exit code was non-zero
+        echo "❌ Concatenation failed with exit code $FFMPEG_EXIT."
+        echo "   See log for details: $OUTPUT_DIR/concatenation.log"
+        
+        # Log failure to database if reporting is available
+        if [[ $(type -t log_failure_to_db) == function ]]; then
+             log_failure_to_db "$FFMPEG_EXIT" "ffmpeg concatenation failed"
         fi
         
         # Log failure to database
@@ -421,6 +405,11 @@ except Exception as e:
     print(f'    ⚠️  Failed to log failure: {e}')
 "
         exit 1
+    fi
+    
+    # Clean up temporary files
+    if [ -n "$TEMP_DIR" ] && [ -d "$TEMP_DIR" ]; then
+        rm -rf "$TEMP_DIR"
     fi
     
     # Clean up temporary files

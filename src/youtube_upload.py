@@ -93,6 +93,37 @@ def generate_youtube_title(brief: dict, local_model: str = "mistral-nemo") -> st
     return f"Amazing {product_list} for {audience} - Must See!"
 
 
+def sanitize_youtube_title(title: str, max_length: int = 100) -> str:
+    """
+    Sanitize YouTube title to meet platform requirements.
+    - Removes leading/trailing whitespace
+    - Ensures title is not empty
+    - Truncates to max_length characters while preserving whole words
+    - Returns default title if empty after sanitization
+    """
+    if not title:
+        return "Product Video - Creative Automation Pipeline"
+    
+    # Strip whitespace
+    title = title.strip()
+    
+    if not title:
+        return "Product Video - Creative Automation Pipeline"
+    
+    # Truncate to max_length if needed
+    if len(title) > max_length:
+        # Try to break at word boundary
+        truncated = title[:max_length]
+        # Find last space within truncation
+        last_space = truncated.rfind(' ')
+        if last_space > max_length * 0.7:  # If space found in reasonable position
+            title = truncated[:last_space] + "..."
+        else:
+            title = truncated + "..."
+    
+    return title
+
+
 def generate_thumbnail(
     brief: dict, 
     output_path: str,
@@ -415,8 +446,8 @@ def upload_to_youtube(
                     }
                 )
                 log_info(f"Logged failed YouTube upload with ID: {log_id}")
-            except Exception as log_error:
-                log_warning(f"Failed to log failed YouTube upload: {log_error}")
+            except Exception as log_exc:
+                log_warning(f"Failed to log failed YouTube upload: {log_exc}")
         
         return {
             'success': False,
@@ -461,6 +492,10 @@ def main():
         title = generate_youtube_title(brief)
     else:
         title = os.path.basename(args.video).replace('.mp4', '').replace('_', ' ')
+    
+    # Sanitize title for YouTube requirements
+    title = sanitize_youtube_title(title)
+    log_info(f"YouTube title: '{title}' (length: {len(title)})")
     
     # Generate description if not provided
     description = args.description

@@ -617,25 +617,6 @@ try:
         language_code='$TARGET_LANGUAGE'
     )
     
-    # Generate voiceover
-    audio_path = '$CAMPAIGN_OUTPUTS_DIR/audio/campaign_voiceover.mp3'
-    print('Generating voiceover...')
-    pipeline.generate_voiceover('''$VIDEO_SCRIPT''', audio_path)
-    
-    # Normalize audio volume if file exists
-    if os.path.exists(audio_path):
-        import subprocess
-        temp_path = audio_path + '.normalized.mp3'
-        cmd = ['ffmpeg', '-y', '-i', audio_path, '-af', 'volume=5dB', temp_path]
-        try:
-            subprocess.run(cmd, capture_output=True, check=True)
-            os.replace(temp_path, audio_path)
-            print(f'✅ Voiceover volume normalized (+5dB)')
-        except Exception as e:
-            print(f'⚠️  Volume normalization failed: {e}')
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
-    
     # Create slideshow video
     video_path = '$CAMPAIGN_OUTPUTS_DIR/video/campaign_slideshow.mp4'
     
@@ -654,6 +635,27 @@ try:
     
     if slideshow_images:
         print(f'Creating slideshow with {len(slideshow_images)} images...')
+        
+        # Generate voiceover with correct duration for silent audio fallback
+        audio_path = '$CAMPAIGN_OUTPUTS_DIR/audio/campaign_voiceover.mp3'
+        print('Generating voiceover...')
+        # Calculate total slideshow duration for silent audio fallback
+        slideshow_duration = len(slideshow_images) * 10.0  # 10 seconds per image
+        pipeline.generate_voiceover('''$VIDEO_SCRIPT''', audio_path, duration=slideshow_duration)
+        
+        # Normalize audio volume if file exists
+        if os.path.exists(audio_path):
+            import subprocess
+            temp_path = audio_path + '.normalized.mp3'
+            cmd = ['ffmpeg', '-y', '-i', audio_path, '-af', 'volume=5dB', temp_path]
+            try:
+                subprocess.run(cmd, capture_output=True, check=True)
+                os.replace(temp_path, audio_path)
+                print(f'✅ Voiceover volume normalized (+5dB)')
+            except Exception as e:
+                print(f'⚠️  Volume normalization failed: {e}')
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
         
         # Use create_slideshow method
         result = pipeline.create_slideshow(
