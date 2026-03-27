@@ -169,6 +169,7 @@ run_single_product_video() {
     # Create outputs directory
     mkdir -p "$OUTPUTS_DIR/images"
     mkdir -p "$OUTPUTS_DIR/video"
+    mkdir -p "$OUTPUTS_DIR/logs"
     
     # Check if ComfyUI server is running
     echo "Checking ComfyUI server connectivity..."
@@ -391,32 +392,15 @@ run_multi_product_campaign() {
         echo ""
         echo "=== Step 2: Generating Aspect Ratios ==="
         
-        # Load logo path from brand config (resolve relative to config file)
+        # Load logo path from brand config
         LOGO_PATH=$(python3 -c "
-import sys, os, json
+import sys, json
 sys.path.append('$SRC_DIR')
 try:
     with open('$BRAND_CONFIG', 'r', encoding='utf-8') as f:
         config = json.load(f)
-    logo_raw = config.get('logo_path', '')
-    if not logo_raw:
-        print('')
-        sys.exit(0)
-    # Resolve relative to brand config file location
-    config_dir = os.path.dirname(os.path.abspath('$BRAND_CONFIG'))
-    logo_abs = os.path.abspath(os.path.join(config_dir, logo_raw))
-    # Check if file exists
-    if os.path.exists(logo_abs):
-        print(logo_abs)
-    else:
-        # Try small logo
-        base, ext = os.path.splitext(logo_abs)
-        small_logo = f'{base}_small{ext}'
-        if os.path.exists(small_logo):
-            print(small_logo)
-        else:
-            print('')
-except Exception as e:
+    print(config.get('logo_path', ''))
+except:
     print('')
 ")
         

@@ -175,10 +175,7 @@ def add_logo_to_image(image_path: str, logo_path: str, output_path: str,
     try:
         if not os.path.exists(logo_path):
             log_warning(f"Logo not found at {logo_path}")
-            import shutil
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            shutil.copy2(image_path, output_path)
-            return output_path
+            return image_path
         
         # Open images
         img = Image.open(image_path).convert("RGBA")
@@ -226,10 +223,7 @@ def add_logo_to_image(image_path: str, logo_path: str, output_path: str,
         
     except Exception as e:
         log_error(f"Adding logo to {image_path}: {e}")
-        import shutil
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        shutil.copy2(image_path, output_path)
-        return output_path
+        return image_path
 
 def main():
     """Test aspect ratio generation."""
