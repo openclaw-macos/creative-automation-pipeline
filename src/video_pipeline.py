@@ -613,16 +613,24 @@ class VideoPipeline:
             
             # Get audio duration
             audio_duration = self._get_audio_duration(audio_path)
-            total_duration = len(image_paths) * duration_per_image
+            total_duration_without_transition = len(image_paths) * duration_per_image
             
             # Adjust duration to match audio if audio is longer
-            if audio_duration > 0 and audio_duration > total_duration:
+            if audio_duration > 0 and audio_duration > total_duration_without_transition:
                 duration_per_image = audio_duration / len(image_paths)
-                total_duration = audio_duration
+                total_duration_without_transition = audio_duration
+            
+            # Total duration with crossfade overlaps
+            total_duration = total_duration_without_transition - (len(image_paths) - 1) * transition_duration
+            if total_duration <= 0:
+                log_warning(f"Total duration negative after transition overlap, adjusting transition duration")
+                transition_duration = min(transition_duration, duration_per_image * 0.9)
+                total_duration = total_duration_without_transition - (len(image_paths) - 1) * transition_duration
             
             log_info(f"Creating slideshow with {len(image_paths)} images")
             log_info(f"Duration per image: {duration_per_image}s")
-            log_info(f"Total duration: {total_duration}s")
+            log_info(f"Transition duration: {transition_duration}s")
+            log_info(f"Total duration (with overlaps): {total_duration}s")
             log_info(f"Audio duration: {audio_duration}s")
             
             # Mix voiceover with background music if available
@@ -637,28 +645,28 @@ class VideoPipeline:
             else:
                 audio_to_use = audio_path
             
-            # Create FFmpeg filter for slideshow with crossfade
+            # Create FFmpeg filter for slideshow with xfade crossfade
             filter_complex = []
             
-            # Input images
-            for i, img_path in enumerate(image_paths):
-                filter_complex.append(f"[{i}:v]scale={self.video_width}:{self.video_height}:force_original_aspect_ratio=increase,crop={self.video_width}:{self.video_height},setpts=PTS-STARTPTS[v{i}];")
+            # Scale and crop each input
+            for i in range(len(image_paths)):
+                filter_complex.append(f"[{i}:v]scale={self.video_width}:{self.video_height}:force_original_aspect_ratio=increase,crop={self.video_width}:{self.video_height}[v{i}];")
             
-            # Create crossfade transitions
-            for i in range(len(image_paths) - 1):
-                if i == 0:
-                    filter_complex.append(f"[v0][v1]blend=all_expr='A*(1-min(1,T/{transition_duration}))+B*min(1,T/{transition_duration})'[b1];")
-                else:
-                    filter_complex.append(f"[b{i}][v{i+1}]blend=all_expr='A*(1-min(1,T/{transition_duration}))+B*min(1,T/{transition_duration})'[b{i+1}];")
-            
-            # Final output
+            # Chain xfade transitions
             if len(image_paths) > 1:
-                final_output = f"[b{len(image_paths)-1}]"
+                prev = "v0"
+                for i in range(1, len(image_paths)):
+                    current = f"v{i}"
+                    # Last transition outputs vout_pre
+                    output = f"xfade{i}" if i < len(image_paths) - 1 else "vout_pre"
+                    filter_complex.append(f"[{prev}][{current}]xfade=transition=fade:duration={transition_duration},format=yuv420p[{output}];")
+                    prev = output
             else:
-                final_output = "[v0]"
+                # Single image: just format conversion
+                filter_complex.append("[v0]format=yuv420p[vout_pre];")
             
             # Add fade in/out
-            filter_complex.append(f"{final_output}fade=t=in:st=0:d={self.fade_in_ms/1000},fade=t=out:st={total_duration - self.fade_out_ms/1000}:d={self.fade_out_ms/1000}[vout]")
+            filter_complex.append(f"[vout_pre]fade=t=in:st=0:d={self.fade_in_ms/1000},fade=t=out:st={total_duration - self.fade_out_ms/1000}:d={self.fade_out_ms/1000},format=yuv420p[vout]")
             
             filter_str = "".join(filter_complex)
             
