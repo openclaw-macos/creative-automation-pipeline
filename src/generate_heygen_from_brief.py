@@ -134,6 +134,11 @@ def generate_heygen_video_from_brief(
             language_code = region_mapping.get(target_region, "en")
             log_info(f"   Language code: {language_code} (from region: {target_region})")
         
+        # Override: use real translation for all non‑English campaigns (user preference)
+        if language_code != "en":
+            use_mock_translation = False
+            log_info(f"   Auto‑enabling real translation for non‑English campaign ({language_code})")
+        
         # Get avatar script (priority: avatar_script > campaign_video_message > campaign_message)
         script = brief.get("avatar_script") or brief.get("campaign_video_message") or brief.get("campaign_message", "")
         
@@ -146,10 +151,14 @@ def generate_heygen_video_from_brief(
             script = localized.get("campaign_video_message") or localized.get("campaign_message_localized") or script
         else:
             # Use existing localization for translation if needed
-            if language_code != "en" and not use_mock_translation:
-                loc = Localization(use_mock=False, translation_api="libre")
+            if language_code != "en":
+                loc = Localization(use_mock=use_mock_translation, translation_api="libre")
+                original_script = script
                 script = loc.translate_text(script, "auto", language_code)
-                log_info(f"   Translated script to {language_code}")
+                if use_mock_translation and script == original_script:
+                    log_warning(f"   Mock translation failed for '{original_script[:50]}...' - phrase not in dictionary")
+                    log_warning(f"   Use --use-real-translation for real Japanese translation")
+                log_info(f"   Translated script to {language_code} ({'mock' if use_mock_translation else 'real'})")
             localized = {"language_code": language_code}
         
         log_info(f"   Script length: {len(script)} characters")

@@ -83,6 +83,7 @@ class Localization:
             "Start your day smarter with our kitchen essentials": "キッチン必需品でよりスマートな一日を始めましょう",
             "Premium quality for modern living": "モダンな生活のためのプレミアム品質",
             "Innovative design meets functionality": "革新的なデザインと機能性の融合",
+            "The science of glow. Achieve crystal-clear skin with precision.": "輝きの科学。精密さでクリスタルクリアな肌を実現。",
         },
         "ar": {
             "Start your day smarter with our kitchen essentials": "ابدأ يومك بذكاء أكبر مع أساسيات مطبخنا",

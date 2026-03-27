@@ -44,6 +44,23 @@ class HeyGenIntegration:
         self.default_voice_id = "8a2bdb430871445594dafc3488c54574"  # Voice: RaviK Pullet
         self.default_scene = "default"  # Default scene
         
+        # Language to voice mapping (static fallback when API fails)
+        # These are example voice IDs - may need adjustment based on actual HeyGen voice IDs
+        self.language_voice_mapping = {
+            "en": "8a2bdb430871445594dafc3488c54574",  # RaviK Pullet (English)
+            "ja": "1b2933fa546942539106b9507478874c",  # Voicebox voice (likely multilingual)
+            "de": "1b2933fa546942539106b9507478874c",  # Fallback to voicebox
+            "fr": "1b2933fa546942539106b9507478874c",
+            "es": "1b2933fa546942539106b9507478874c",
+            "it": "1b2933fa546942539106b9507478874c",
+            "zh": "1b2933fa546942539106b9507478874c",
+            "ko": "1b2933fa546942539106b9507478874c",
+            "ar": "1b2933fa546942539106b9507478874c",
+            "pt": "1b2933fa546942539106b9507478874c",
+            "sv": "1b2933fa546942539106b9507478874c",
+            "hi": "1b2933fa546942539106b9507478874c",
+        }
+        
         # Cache for API responses
         self._avatars_cache = None
         self._voices_cache = None
@@ -131,6 +148,61 @@ class HeyGenIntegration:
         
         return None
     
+    def find_voice_by_language(self, language_code: str) -> Optional[str]:
+        """
+        Find appropriate voice for a given language code.
+        
+        Args:
+            language_code: ISO 639-1 language code (e.g., "en", "ja", "de")
+            
+        Returns:
+            voice_id if found, None otherwise
+        """
+        try:
+            voices = self.get_available_voices()
+            
+            # Language name mapping for voice search
+            language_names = {
+                "en": ["english", "en"],
+                "ja": ["japanese", "jp", "ja"],
+                "de": ["german", "deutsch", "de"],
+                "fr": ["french", "français", "fr"],
+                "es": ["spanish", "español", "es"],
+                "it": ["italian", "italiano", "it"],
+                "zh": ["chinese", "mandarin", "zh"],
+                "ko": ["korean", "korea", "ko"],
+                "ar": ["arabic", "arab", "ar"],
+                "pt": ["portuguese", "português", "pt"],
+                "sv": ["swedish", "svenska", "sv"],
+                "hi": ["hindi", "hind", "hi"],
+            }
+            
+            # Get search terms for this language
+            search_terms = language_names.get(language_code.lower(), [language_code.lower()])
+            
+            # Search for voices matching language
+            for voice in voices:
+                voice_name = voice.get("name", "").lower()
+                for term in search_terms:
+                    if term in voice_name:
+                        voice_id = voice.get("voice_id")
+                        log_debug(f"Found voice '{voice_name}' for language '{language_code}'")
+                        return voice_id
+            
+            # If no voice found by name, try static mapping
+            log_debug(f"No voice found by name for language '{language_code}', using static mapping")
+            voice_id = self.language_voice_mapping.get(language_code.lower())
+            if voice_id:
+                return voice_id
+            else:
+                log_warning(f"No static mapping for language '{language_code}', falling back to default")
+                return self.default_voice_id
+            
+        except Exception as e:
+            log_warning(f"Error finding voice for language '{language_code}': {e}")
+            # Fall back to static mapping or default
+            return self.language_voice_mapping.get(language_code.lower(), self.default_voice_id)
+    
     def find_digital_twin_avatar(self) -> Optional[str]:
         """
         Find digital twin avatar by name 'Agent 42 from isFutureNOW' or ID.
@@ -184,14 +256,25 @@ class HeyGenIntegration:
             log_info(f"Using digital twin avatar: {avatar_id}")
             
         if voice_id is None:
-            # Try to find Voicebox voice
-            voicebox_voice = self.find_voicebox_voice()
-            if voicebox_voice:
-                voice_id = voicebox_voice
-                log_info(f"Using Voicebox voice: {voice_id}")
+            # First try to find a voice matching the target language
+            lang_voice = self.find_voice_by_language(language)
+            if lang_voice:
+                voice_id = lang_voice
+                log_info(f"Using language-specific voice for '{language}': {voice_id}")
             else:
+                log_warning(f"No language-specific voice found for '{language}', falling back to alternatives")
+            
+            # If still no voice selected, try Voicebox voice
+            if voice_id is None:
+                voicebox_voice = self.find_voicebox_voice()
+                if voicebox_voice:
+                    voice_id = voicebox_voice
+                    log_info(f"Using Voicebox voice: {voice_id}")
+            
+            # Final fallback to default voice
+            if voice_id is None:
                 voice_id = self.default_voice_id  # Will use RaviK Pullet
-                log_info(f"Using configured voice: RaviK Pullet ({voice_id})")
+                log_info(f"Using configured default voice: RaviK Pullet ({voice_id})")
         
         # Prepare API request
         url = f"{self.base_url}/v2/video/generate"
