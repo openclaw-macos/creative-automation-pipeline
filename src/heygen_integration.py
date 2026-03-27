@@ -294,21 +294,27 @@ class HeyGenIntegration:
         """
         max_attempts = 60  # 5 minutes max
         # Possible polling endpoints for HeyGen v2 API
+        # Note: The correct v2 status endpoint is actually a v1-labeled URL with query parameter
         polling_patterns = [
-            f"{self.base_url}/v2/video/{task_id}",
-            f"{self.base_url}/v2/videos/{task_id}",
-            f"{self.base_url}/v2/tasks/{task_id}",
-            f"{self.base_url}/v2/video/{task_id}/status",
-            f"{self.base_url}/v2/videos/{task_id}/status",
+            ("https://api.heygen.com/v1/video_status.get", {"video_id": task_id}),  # Primary correct endpoint
+            (f"{self.base_url}/v2/video/{task_id}", None),  # Fallback patterns
+            (f"{self.base_url}/v2/videos/{task_id}", None),
+            (f"{self.base_url}/v2/tasks/{task_id}", None),
+            (f"{self.base_url}/v2/video/{task_id}/status", None),
+            (f"{self.base_url}/v2/videos/{task_id}/status", None),
         ]
         
         log_info(f"Polling for video completion (max {max_attempts * poll_interval}s)...")
         
         for attempt in range(max_attempts):
             # Try each polling pattern until we find one that works
-            for pattern_index, url in enumerate(polling_patterns):
+            for pattern_index, (url, params) in enumerate(polling_patterns):
                 try:
-                    response = requests.get(url, headers=self.headers, timeout=30)
+                    # Use params if provided (for query parameters like video_id)
+                    request_kwargs = {"headers": self.headers, "timeout": 30}
+                    if params:
+                        request_kwargs["params"] = params
+                    response = requests.get(url, **request_kwargs)
                     response.raise_for_status()
                     data = response.json()
                     log_debug(f"DEBUG: Polling response keys: {list(data.keys())}")
@@ -316,7 +322,7 @@ class HeyGenIntegration:
                         log_debug(f"DEBUG: data dict keys: {list(data['data'].keys())}")
                     
                     status = data.get("data", {}).get("status")
-                    video_url = data.get("data", {}).get("video_url")
+                    video_url = data.get("data", {}).get("video_url") or data.get("data", {}).get("url")
                     
                     if status == "completed" and video_url:
                         log_success(f"Video completed on attempt {attempt + 1}")
@@ -332,8 +338,8 @@ class HeyGenIntegration:
                         if attempt % 6 == 0:  # Print every 30 seconds
                             log_info(f"  Still processing... ({attempt * poll_interval}s elapsed)")
                         # Found working pattern, use it for next poll
-                        # Update polling_patterns to only use this working pattern
-                        polling_patterns = [url]
+                        # Update polling_patterns to only use this working pattern (preserve params)
+                        polling_patterns = [(url, params)]
                         time.sleep(poll_interval)
                         break  # Break out of pattern loop, continue to next attempt
                     else:
