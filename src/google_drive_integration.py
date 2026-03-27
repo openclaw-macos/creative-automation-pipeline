@@ -27,6 +27,9 @@ except ImportError:
 # Try to import Google API libraries
 try:
     from google.oauth2 import service_account
+    from google_auth_oauthlib.flow import InstalledAppFlow
+    from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload
     from googleapiclient.errors import HttpError
@@ -38,53 +41,100 @@ except ImportError:
 class GoogleDriveIntegration:
     """
     Google Drive integration for uploading generated assets.
-    Uses service account authentication.
+    Supports OAuth2 (preferred) or service account authentication.
     """
     
-    def __init__(self, service_account_file: str = None, folder_id: str = None):
+    def __init__(self, service_account_file: str = None, folder_id: str = None,
+                 oauth_client_secrets_file: str = None, oauth_token_file: str = None):
         """
         Initialize Google Drive integration.
         
         Args:
-            service_account_file: Path to service account JSON file
+            service_account_file: Path to service account JSON file (legacy)
             folder_id: Google Drive folder ID to upload to (default: creative-automation-pipeline folder)
+            oauth_client_secrets_file: Path to OAuth client secrets JSON file (preferred)
+            oauth_token_file: Path to store/load OAuth token (default: ~/.google_token.json)
         """
         self.service_account_file = service_account_file
+        self.oauth_client_secrets_file = oauth_client_secrets_file
+        self.oauth_token_file = oauth_token_file or os.path.expanduser("~/.google_token.json")
         self.folder_id = folder_id or "1XdhY-6U624J_ml-MulmMfhQ5zrn9ja1H"  # Default folder ID from user
         
-        # Default service account path if not provided
-        if not self.service_account_file:
+        # Determine authentication mode
+        self.use_oauth = False
+        if self.oauth_client_secrets_file:
+            self.use_oauth = True
+            if not os.path.exists(self.oauth_client_secrets_file):
+                raise FileNotFoundError(f"OAuth client secrets file not found: {self.oauth_client_secrets_file}")
+        elif not self.service_account_file:
+            # Try default service account paths
             default_paths = [
                 "~/google_serviceaccount/service_account.json",
                 "~/google_serviceaccount/credentials.json",
                 "~/google_serviceaccount/google_service_account.json",
             ]
             for path in default_paths:
-                if os.path.exists(path):
-                    self.service_account_file = path
+                expanded = os.path.expanduser(path)
+                if os.path.exists(expanded):
+                    self.service_account_file = expanded
                     break
         
-        if not self.service_account_file or not os.path.exists(self.service_account_file):
+        if self.use_oauth:
+            # OAuth mode: client secrets must exist
+            pass
+        elif not self.service_account_file or not os.path.exists(self.service_account_file):
             raise FileNotFoundError(f"Service account file not found: {self.service_account_file}")
         
         self.service = None
         self._authenticate()
     
     def _authenticate(self):
-        """Authenticate with Google Drive using service account."""
+        """Authenticate with Google Drive using OAuth2 or service account."""
         if not GOOGLE_API_AVAILABLE:
             raise ImportError("Google API libraries not installed")
         
         try:
-            # Load service account credentials
-            credentials = service_account.Credentials.from_service_account_file(
-                self.service_account_file,
-                scopes=['https://www.googleapis.com/auth/drive']
-            )
+            if self.use_oauth:
+                # OAuth2 authentication flow
+                SCOPES = ['https://www.googleapis.com/auth/drive']
+                creds = None
+                
+                # Load existing token if available
+                if os.path.exists(self.oauth_token_file):
+                    try:
+                        creds = Credentials.from_authorized_user_info(
+                            json.load(open(self.oauth_token_file)),
+                            SCOPES
+                        )
+                    except Exception as e:
+                        log_warning(f"Failed to load OAuth token: {e}")
+                
+                # If no valid credentials, run the OAuth flow
+                if not creds or not creds.valid:
+                    if creds and creds.expired and creds.refresh_token:
+                        creds.refresh(Request())
+                    else:
+                        flow = InstalledAppFlow.from_client_secrets_file(
+                            self.oauth_client_secrets_file, SCOPES
+                        )
+                        creds = flow.run_local_server(port=0)
+                    
+                    # Save the credentials for future use
+                    with open(self.oauth_token_file, 'w') as token:
+                        token.write(creds.to_json())
+                
+                credentials = creds
+                log_success(f"Authenticated with Google Drive as: {creds.client_id}")
+            else:
+                # Service account authentication (legacy)
+                credentials = service_account.Credentials.from_service_account_file(
+                    self.service_account_file,
+                    scopes=['https://www.googleapis.com/auth/drive']
+                )
+                log_success(f"Authenticated with Google Drive as: {credentials.service_account_email}")
             
             # Build Drive service
             self.service = build('drive', 'v3', credentials=credentials)
-            log_success(f"Authenticated with Google Drive as: {credentials.service_account_email}")
             
         except Exception as e:
             log_error(f"Google Drive authentication failed: {e}")
@@ -355,7 +405,10 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description="Test Google Drive integration")
-    parser.add_argument("--service-account", help="Path to service account JSON file")
+    auth_group = parser.add_mutually_exclusive_group()
+    auth_group.add_argument("--service-account", help="Path to service account JSON file (legacy)")
+    auth_group.add_argument("--oauth-secrets", help="Path to OAuth client secrets JSON file (preferred)")
+    parser.add_argument("--oauth-token", default="~/.google_token.json", help="Path to OAuth token file (default: ~/.google_token.json)")
     parser.add_argument("--folder-id", default="1XdhY-6U624J_ml-MulmMfhQ5zrn9ja1H", help="Google Drive folder ID")
     parser.add_argument("--upload", help="Local file or folder to upload")
     parser.add_argument("--test-auth", action="store_true", help="Test authentication only")
@@ -383,7 +436,9 @@ def main():
     try:
         # Initialize Google Drive integration
         drive = GoogleDriveIntegration(
-            service_account_file=args.service_account,
+            service_account_file=args.service_account if not args.oauth_secrets else None,
+            oauth_client_secrets_file=args.oauth_secrets,
+            oauth_token_file=args.oauth_token,
             folder_id=args.folder_id
         )
         
@@ -413,9 +468,11 @@ def main():
         
         else:
             log_info("\nUsage examples:")
-            log_info("  python google_drive_integration.py --upload /path/to/file.jpg")
-            log_info("  python google_drive_integration.py --upload /path/to/folder")
-            log_info("  python google_drive_integration.py --test-auth")
+            log_info("  # OAuth2 (preferred, higher quota):")
+            log_info("  python google_drive_integration.py --oauth-secrets ~/google_oauth_info/client_secrets.json --upload /path/to/file.jpg")
+            log_info("  # Service account (legacy):")
+            log_info("  python google_drive_integration.py --service-account ~/google_serviceaccount/service_account.json --upload /path/to/folder")
+            log_info("  python google_drive_integration.py --oauth-secrets ~/google_oauth_info/client_secrets.json --test-auth")
     
     except Exception as e:
         log_error(f"Error: {e}")

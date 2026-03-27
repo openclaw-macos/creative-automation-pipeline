@@ -59,7 +59,9 @@ cd creative-automation-pipeline
   Edge TTS requires an internet connection and uses Microsoft's cloud TTS service via the Edge browser API. Voice quality is high but latency depends on network speed.
 
 **Optional Cloud Services:**
-- **Google Drive API** credentials (optional, for cloud storage) – create a service account and download the JSON key. Place it at `~/google_serviceaccount/service_account.json` or update the path in `src/comfyui_generate.py`.
+- **Google Drive API** credentials (optional, for cloud storage) – use either:
+  - **OAuth client secrets** (preferred, higher quota): Place at `~/google_oauth_info/client_secrets.json` and use `--drive-use-oauth` flag
+  - **Service account** (legacy): Create service account and download JSON key. Place at `~/google_serviceaccount/service_account.json` or update the path in `src/comfyui_generate.py`.
 - **HeyGen API key** (optional, for avatar videos) – sign up at [HeyGen](https://www.heygen.com/) and obtain an API key.
 
 **Storage Requirements**
@@ -193,7 +195,7 @@ git pull origin main
 
 ### ☁️ **Google Drive Cloud Storage**
 - **Automatic upload** of all generated assets (images, videos, audio, reports)
-- **Service account authentication** – Secure API access without user login
+- **Dual authentication** – Supports both OAuth2 (preferred, higher quota) and service account (legacy, secure API access without user login)
 - **Organized folder structure** – Maintains local folder hierarchy in cloud
 - **Public shareable links** – Automatically generates read‑only links
 - **Local copy preserved** – Never deletes original files
@@ -327,7 +329,7 @@ The individual scripts below are useful for debugging or specific workflow steps
 ### **(Step 2) run_video_demo.sh** – Video Pipeline
 ```bash
 # Creates video from images (calls run_images_demo.sh if images not present)
-./scripts/campaigns/run_video_demo.sh [--brief FILE] [--upload-to-drive] [--drive-service-account PATH] [--drive-folder-id ID]
+./scripts/campaigns/run_video_demo.sh [--brief FILE] [--upload-to-drive] [--drive-use-oauth] [--drive-oauth-secrets PATH] [--drive-service-account PATH] [--drive-folder-id ID]
 ```
 **What it does (automatically detects single vs multi-product from brief.json):**
 
@@ -431,7 +433,9 @@ For single-command execution of the entire 5-step sequence, use the master orche
 | `--verbose` | Enable verbose output (shows all subcommand output) | `false` |
 | `--simulate` | Simulation mode (no real API calls, skip compliance checks) | `false` |
 | `--upload-to-drive` | Upload outputs to Google Drive (ignored in simulation) | `false` |
-| `--drive-service-account PATH` | Google service account JSON path | `""` |
+| `--drive-use-oauth` | Use OAuth2 authentication instead of service account (higher quota) | `false` |
+| `--drive-oauth-secrets PATH` | OAuth client secrets JSON path (default: ~/google_oauth_info/client_secrets.json) | `""` |
+| `--drive-service-account PATH` | Google service account JSON path (legacy, lower quota) | `""` |
 | `--drive-folder-id ID` | Google Drive folder ID | `""` |
 | `--heygen-api-key KEY` | HeyGen API key (required for real avatar generation) | `""` |
 | `--client-secrets PATH` | OAuth client_secrets.json for YouTube upload | `""` |

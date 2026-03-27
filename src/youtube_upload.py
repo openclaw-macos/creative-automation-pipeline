@@ -29,9 +29,11 @@ except ImportError:
     print("⚠️  Google API libraries not installed. YouTube upload will be simulated.")
     print("   Install with: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client")
 
+import logging
+
 # Local imports
 try:
-    from utils.logger import log_info, log_warning, log_error, log_success, log_failure
+    from utils.logger import log_info, log_warning, log_error, log_success, log_failure, set_log_level, get_log_level
 except ImportError:
     # Fallback logging
     def log_info(msg): print(f"INFO: {msg}")
@@ -39,6 +41,8 @@ except ImportError:
     def log_error(msg): print(f"ERROR: {msg}")
     def log_success(msg): print(f"SUCCESS: {msg}")
     def log_failure(msg): print(f"FAILURE: {msg}")
+    def set_log_level(level): pass
+    def get_log_level(level_str): return 20  # INFO level
 
 # Reporting import
 try:
@@ -435,8 +439,14 @@ def main():
                        help="Privacy status (default: private)")
     parser.add_argument("--outputs-dir", help="Directory containing product images for thumbnail generation")
     parser.add_argument("--simulate", action="store_true", help="Simulate upload without YouTube API")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose debug output")
     
     args = parser.parse_args()
+    
+    # Set log level based on verbose flag
+    if args.verbose:
+        set_log_level(logging.DEBUG)
+        log_info("Verbose debug output enabled")
     
     # Load brief if provided
     brief = {}

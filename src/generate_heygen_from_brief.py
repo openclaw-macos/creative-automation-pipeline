@@ -121,10 +121,18 @@ def generate_heygen_video_from_brief(
         region_mapping = mapping.get("region_language_mapping", {})
         voice_mapping = mapping.get("language_voice_mapping", {})
         
-        # Get language code from region mapping
+        # Get language code - prioritize target_language field, then region mapping
         target_region = brief.get("target_region", "USA")
-        language_code = region_mapping.get(target_region, "en")
-        log_info(f"   Language code: {language_code} (from region: {target_region})")
+        target_language = brief.get("target_language")
+        
+        if target_language:
+            # Use explicit target_language from brief.json
+            language_code = target_language
+            log_info(f"   Language code: {language_code} (from brief target_language field)")
+        else:
+            # Fall back to region mapping
+            language_code = region_mapping.get(target_region, "en")
+            log_info(f"   Language code: {language_code} (from region: {target_region})")
         
         # Get avatar script (priority: avatar_script > campaign_video_message > campaign_message)
         script = brief.get("avatar_script") or brief.get("campaign_video_message") or brief.get("campaign_message", "")

@@ -18,9 +18,12 @@ BRIEF_FILE="$PROJECT_ROOT/configs/brief.json"
 VERBOSE=""
 
 # Google Drive integration flags (infrastructure settings, not campaign content)
+DRIVE_USE_OAUTH=false
+DRIVE_OAUTH_SECRETS="~/google_oauth_info/client_secrets.json"
+DRIVE_OAUTH_TOKEN="~/.google_token.json"
 UPLOAD_TO_DRIVE=false
 DRIVE_SERVICE_ACCOUNT="~/google_serviceaccount/service_account.json"
-DRIVE_FOLDER_ID="1XdhY-6U624J_ml-MulmMfhQ5zrn9ja1H"
+DRIVE_FOLDER_ID=""
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -36,6 +39,14 @@ while [[ $# -gt 0 ]]; do
         --upload-to-drive)
             UPLOAD_TO_DRIVE=true
             shift
+            ;;
+        --drive-use-oauth)
+            DRIVE_USE_OAUTH=true
+            shift
+            ;;
+        --drive-oauth-secrets)
+            DRIVE_OAUTH_SECRETS="$2"
+            shift 2
             ;;
         --drive-service-account)
             DRIVE_SERVICE_ACCOUNT="$2"
@@ -55,6 +66,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --brief FILE              Path to brief.json (default: configs/brief.json)"
             echo "  --verbose                 Enable verbose debug output"
             echo "  --upload-to-drive         Enable Google Drive upload"
+            echo "  --drive-use-oauth         Use OAuth authentication (requires client secrets)"
+            echo "  --drive-oauth-secrets     OAuth client secrets JSON path"
             echo "  --drive-service-account   Google service account JSON path"
             echo "  --drive-folder-id         Google Drive folder ID for upload"
             echo "  --help                    Show this help"
@@ -62,6 +75,7 @@ while [[ $# -gt 0 ]]; do
             echo "Examples:"
             echo "  $0"
             echo "  $0 --brief configs/examples/3_Premium_Personal_Care_Japan/brief.json"
+            echo "  $0 --upload-to-drive --drive-use-oauth --drive-oauth-secrets ~/google_oauth_info/client_secrets.json"
             echo "  $0 --upload-to-drive --drive-service-account ~/google_serviceaccount/service_account.json"
             exit 0
             ;;
@@ -77,7 +91,11 @@ echo "=== Creative Automation Pipeline with Video Demo ==="
 echo "Brief file: $BRIEF_FILE"
 if [ "$UPLOAD_TO_DRIVE" = true ]; then
     echo "Google Drive Upload: ENABLED"
-    echo "  Service Account: $DRIVE_SERVICE_ACCOUNT"
+    if [ "$DRIVE_USE_OAUTH" = true ]; then
+        echo "  Authentication: OAuth2 (secrets: $DRIVE_OAUTH_SECRETS)"
+    else
+        echo "  Service Account: $DRIVE_SERVICE_ACCOUNT"
+    fi
     echo "  Folder ID: $DRIVE_FOLDER_ID"
 else
     echo "Google Drive Upload: DISABLED (use --upload-to-drive to enable)"
@@ -246,7 +264,13 @@ run_single_product_video() {
     # Add Google Drive arguments if enabled
     if [ "$UPLOAD_TO_DRIVE" = true ]; then
         CMD_ARGS+=("--upload-to-drive")
-        CMD_ARGS+=("--drive-service-account" "$DRIVE_SERVICE_ACCOUNT")
+        if [ "$DRIVE_USE_OAUTH" = true ]; then
+            CMD_ARGS+=("--drive-use-oauth")
+            CMD_ARGS+=("--drive-oauth-secrets" "$DRIVE_OAUTH_SECRETS")
+            CMD_ARGS+=("--drive-oauth-token" "$DRIVE_OAUTH_TOKEN")
+        else
+            CMD_ARGS+=("--drive-service-account" "$DRIVE_SERVICE_ACCOUNT")
+        fi
         CMD_ARGS+=("--drive-folder-id" "$DRIVE_FOLDER_ID")
         CMD_ARGS+=("--keep-local")
     fi
@@ -374,7 +398,13 @@ run_multi_product_campaign() {
         # Add Google Drive arguments if enabled
         if [ "$UPLOAD_TO_DRIVE" = true ]; then
             CMD_ARGS+=("--upload-to-drive")
-            CMD_ARGS+=("--drive-service-account" "$DRIVE_SERVICE_ACCOUNT")
+            if [ "$DRIVE_USE_OAUTH" = true ]; then
+                CMD_ARGS+=("--drive-use-oauth")
+                CMD_ARGS+=("--drive-oauth-secrets" "$DRIVE_OAUTH_SECRETS")
+                CMD_ARGS+=("--drive-oauth-token" "$DRIVE_OAUTH_TOKEN")
+            else
+                CMD_ARGS+=("--drive-service-account" "$DRIVE_SERVICE_ACCOUNT")
+            fi
             CMD_ARGS+=("--drive-folder-id" "$DRIVE_FOLDER_ID")
             CMD_ARGS+=("--keep-local")
         fi

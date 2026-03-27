@@ -72,6 +72,7 @@ DEFAULT_BRAND_CONFIG = os.path.join(SCRIPT_DIR, "../configs/brand_config.json")
 DEFAULT_DB_PATH = os.path.join(SCRIPT_DIR, "../outputs/logs/pipeline_logs.db")
 DEFAULT_JSON_REPORT = os.path.join(SCRIPT_DIR, "../outputs/logs/run_report.json")
 DEFAULT_SERVICE_ACCOUNT = "~/google_serviceaccount/service_account.json"
+DEFAULT_OAUTH_SECRETS = "~/google_oauth_info/client_secrets.json"
 DEFAULT_DRIVE_FOLDER_ID = "1XdhY-6U624J_ml-MulmMfhQ5zrn9ja1H"  # creative-automation-pipeline folder
 
 def load_workflow(path: str) -> Dict[str, Any]:
@@ -285,6 +286,9 @@ def main():
     # Google Drive upload arguments (cloud storage integration)
     parser.add_argument("--upload-to-drive", action="store_true", help="Upload outputs to Google Drive")
     parser.add_argument("--drive-service-account", default=DEFAULT_SERVICE_ACCOUNT, help=f"Path to Google service account JSON (default: {DEFAULT_SERVICE_ACCOUNT})")
+    parser.add_argument("--drive-oauth-secrets", default=DEFAULT_OAUTH_SECRETS, help=f"Path to OAuth client secrets JSON (default: {DEFAULT_OAUTH_SECRETS})")
+    parser.add_argument("--drive-oauth-token", default="~/.google_token.json", help="Path to store/load OAuth token (default: ~/.google_token.json)")
+    parser.add_argument("--drive-use-oauth", action="store_true", help="Use OAuth authentication instead of service account")
     parser.add_argument("--drive-folder-id", default=DEFAULT_DRIVE_FOLDER_ID, help=f"Google Drive folder ID (default: {DEFAULT_DRIVE_FOLDER_ID})")
     parser.add_argument("--keep-local", action="store_true", default=True, help="Keep local copy of files (always enabled)")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose debug output (sets log level to DEBUG)")
@@ -566,9 +570,15 @@ def main():
     if args.upload_to_drive and GOOGLE_DRIVE_AVAILABLE:
         log_info("\n=== Uploading to Google Drive ===")
         try:
+            # Determine authentication mode
+            oauth_secrets = args.drive_oauth_secrets if args.drive_use_oauth else None
+            service_account = args.drive_service_account if not args.drive_use_oauth else None
+            
             # Initialize Google Drive integration
             drive = GoogleDriveIntegration(
-                service_account_file=args.drive_service_account,
+                service_account_file=service_account,
+                oauth_client_secrets_file=oauth_secrets,
+                oauth_token_file=args.drive_oauth_token,
                 folder_id=args.drive_folder_id
             )
             

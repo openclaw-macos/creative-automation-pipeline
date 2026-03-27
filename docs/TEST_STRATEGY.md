@@ -106,7 +106,7 @@ sed -i '' 's|/absolute/path/to/your/assets/folder|/Users/youee-mac/IFN_Corp/crea
 | **ComfyUI** | `curl -s http://127.0.0.1:8188/prompt` | ✅ Running (`{"exec_info": {"queue_remaining": 0}}`) | Image generation uses placeholder | Step 1 (images) – simulation creates `.placeholder` files |
 | **Voicebox** | `curl -s http://127.0.0.1:17493/health` | ✅ Running (`{"status":"healthy",...}`) | Edge TTS fallback (if installed) or silent audio | Step 2 (video) – uses Edge TTS, silent audio, or mock audio |
 | **HeyGen API** | API key in env/argument | Not tested (simulation available) | `--simulate` flag | Steps 3‑4 – mock avatar generation, video combination still works |
-| **Google Drive** | Service account JSON | Not tested (simulation available) | Skip with `--simulate` | Optional upload – not required for core pipeline |
+| **Google Drive** | Service account JSON or OAuth client secrets | Not tested (simulation available) | Skip with `--simulate` | Optional upload – not required for core pipeline; use `--drive-use-oauth` for OAuth2 authentication |
 | **YouTube OAuth** | `client_secrets.json` | Not tested (simulation available) | `--simulate` flag | Step 5 – simulation outputs metadata without real upload |
 | **Python Dependencies** | `pip list \| grep -E "(pillow\|opencv\|numpy\|requests\|pyyaml\|google)"` | ✅ Core packages installed (pillow, opencv-python, numpy, requests); missing pyyaml, Google APIs. Use `pip3` if `pip` not found | Install via `pip install -r requirements.txt` or `./src/install_deps.sh` | All steps – missing packages may cause import errors |
 

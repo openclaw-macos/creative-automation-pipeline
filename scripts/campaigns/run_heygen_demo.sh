@@ -59,6 +59,9 @@ while [[ $# -gt 0 ]]; do
             echo "Examples:"
             echo "  $0 --brief configs/brief.json"
             echo "  $0 --api-key \"sk_V2_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\""
+            echo ""
+            echo "Note: Language is automatically extracted from brief.json (target_language field or region mapping)"
+            echo "      and passed to HeyGen API for appropriate voice selection."
             exit 0
             ;;
         *)
