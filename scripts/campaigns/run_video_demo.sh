@@ -169,7 +169,6 @@ run_single_product_video() {
     # Create outputs directory
     mkdir -p "$OUTPUTS_DIR/images"
     mkdir -p "$OUTPUTS_DIR/video"
-    mkdir -p "$OUTPUTS_DIR/logs"
     
     # Check if ComfyUI server is running
     echo "Checking ComfyUI server connectivity..."
@@ -392,14 +391,21 @@ run_multi_product_campaign() {
         echo ""
         echo "=== Step 2: Generating Aspect Ratios ==="
         
-        # Load logo path from brand config
+        # Resolve logo path relative to brand config file, matching video_pipeline.py logic
         LOGO_PATH=$(python3 -c "
-import sys, json
+import sys, json, os
 sys.path.append('$SRC_DIR')
 try:
     with open('$BRAND_CONFIG', 'r', encoding='utf-8') as f:
         config = json.load(f)
-    print(config.get('logo_path', ''))
+    raw = config.get('logo_path', '')
+    if raw:
+        if os.path.isabs(raw):
+            print(raw)
+        else:
+            print(os.path.abspath(os.path.join(os.path.dirname('$BRAND_CONFIG'), raw)))
+    else:
+        print('')
 except:
     print('')
 ")
@@ -436,15 +442,24 @@ except:
                     OUTPUT_IMAGE="$CAMPAIGN_OUTPUTS_DIR/images/with_logo/${CLEAN_NAME}_${RATIO}_with_logo.png"
                     
                     if [ -f "$INPUT_IMAGE" ]; then
-                        ASPECT_ARGS2=(
-                            --image "$INPUT_IMAGE"
-                            --output-dir "$CAMPAIGN_OUTPUTS_DIR/images/with_logo"
-                            --product "${CLEAN_NAME}_${RATIO}"
-                            --logo "$LOGO_PATH"
-                        )
-                        
-                        $PYTHON_EXEC "$SRC_DIR/aspect_ratio.py" "${ASPECT_ARGS2[@]}"
-                        
+                        # Call add_logo_to_image directly — do NOT re-run aspect_ratio.py
+                        # (re-running would generate 3 new aspect ratios and produce wrong filenames)
+                        $PYTHON_EXEC -c "
+import sys, os, json
+sys.path.append('$SRC_DIR')
+from aspect_ratio import add_logo_to_image
+with open('$BRAND_CONFIG', 'r', encoding='utf-8') as f:
+    cfg = json.load(f)
+opacity = cfg.get('logo_check_settings', {}).get('opacity', 0.1)
+position = cfg.get('logo_check_settings', {}).get('preferred_position', 'top-right')
+result = add_logo_to_image('$INPUT_IMAGE', '$LOGO_PATH', '$OUTPUT_IMAGE', position=position, opacity=opacity)
+if result and os.path.exists('$OUTPUT_IMAGE'):
+    print('      logo overlay written')
+else:
+    print('      logo overlay failed, copying original')
+    import shutil
+    shutil.copy2('$INPUT_IMAGE', '$OUTPUT_IMAGE')
+"
                         if [ -f "$OUTPUT_IMAGE" ]; then
                             ALL_IMAGES_WITH_LOGO+=("$OUTPUT_IMAGE")
                             echo "    ✅ ${RATIO} with logo: $(basename "$OUTPUT_IMAGE")"

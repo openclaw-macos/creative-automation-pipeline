@@ -62,6 +62,24 @@ command -v pip >/dev/null 2>&1 && pip_cmd=pip || pip_cmd=pip3
 $pip_cmd list | grep -E "(pillow|opencv|numpy|requests)" || echo "⚠️ Required packages not found; run ./src/install_deps.sh"
 ```
 
+
+### **4. Configure Assets Path**
+
+Before running `run_video_demo.sh`, update the assets configuration file to point to your local assets folder:
+
+```bash
+# Edit configs/assets.json and change the assets_root path
+nano configs/assets.json
+# or use sed
+sed -i '' 's|/absolute/path/to/your/assets/folder|/Users/youee-mac/IFN_Corp/creative-automation-pipeline/assets|' configs/assets.json
+```
+
+**Workspace/IFN_Corp Workflow Pattern:**
+- **Active Development Folder**: `/Users/youee-mac/.openclaw/agents/main/workspace/` → GitHub push source
+- **Testing/Download Folder**: `/Users/youee-mac/IFN_Corp/` → for testing downloaded builds
+- **Operational Rule**: Always push to GitHub from workspace folder; IFN_Corp folder is for testing downloads only
+- **Future Testing Pattern**: Build in workspace → push to GitHub → download to IFN_Corp folder for testing → iterate in workspace
+
 ---
 
 ## 🧪 Test Sequence & Expected Results

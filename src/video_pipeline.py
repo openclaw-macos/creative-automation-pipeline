@@ -637,28 +637,58 @@ class VideoPipeline:
             else:
                 audio_to_use = audio_path
             
-            # Create FFmpeg filter for slideshow with crossfade
+            # Recompute total_duration accounting for xfade overlap
+            # Each transition overlaps transition_duration seconds, so the real video
+            # is shorter than n * duration_per_image by (n-1) * transition_duration.
+            n = len(image_paths)
+            t_xf = transition_duration
+            d_xf = duration_per_image
+            xfade_total = n * d_xf - (n - 1) * t_xf
+            total_duration = xfade_total  # update so -t flag and fade-out are correct
+
+            # Create FFmpeg filter for slideshow with xfade transitions
+            # xfade offset = i * (d - t) ensures equal display time per image:
+            # each image is on-screen for d seconds, transitions overlap t seconds.
             filter_complex = []
-            
-            # Input images
-            for i, img_path in enumerate(image_paths):
-                filter_complex.append(f"[{i}:v]scale={self.video_width}:{self.video_height}:force_original_aspect_ratio=increase,crop={self.video_width}:{self.video_height},setpts=PTS-STARTPTS[v{i}];")
-            
-            # Create crossfade transitions
-            for i in range(len(image_paths) - 1):
-                if i == 0:
-                    filter_complex.append(f"[v0][v1]blend=all_expr='A*(1-min(1,T/{transition_duration}))+B*min(1,T/{transition_duration})'[b1];")
-                else:
-                    filter_complex.append(f"[b{i}][v{i+1}]blend=all_expr='A*(1-min(1,T/{transition_duration}))+B*min(1,T/{transition_duration})'[b{i+1}];")
-            
-            # Final output
-            if len(image_paths) > 1:
-                final_output = f"[b{len(image_paths)-1}]"
+
+            # Scale all input images to target resolution
+            for i in range(n):
+                filter_complex.append(
+                    f"[{i}:v]scale={self.video_width}:{self.video_height}:"
+                    f"force_original_aspect_ratio=increase,"
+                    f"crop={self.video_width}:{self.video_height},"
+                    f"setpts=PTS-STARTPTS[v{i}];"
+                )
+
+            if n == 1:
+                # Single image: straight fade in/out, no transition needed
+                filter_complex.append(
+                    f"[v0]fade=t=in:st=0:d={self.fade_in_ms/1000},"
+                    f"fade=t=out:st={xfade_total - self.fade_out_ms/1000}:"
+                    f"d={self.fade_out_ms/1000}[vout]"
+                )
             else:
-                final_output = "[v0]"
-            
-            # Add fade in/out
-            filter_complex.append(f"{final_output}fade=t=in:st=0:d={self.fade_in_ms/1000},fade=t=out:st={total_duration - self.fade_out_ms/1000}:d={self.fade_out_ms/1000}[vout]")
+                # Chain xfade transitions.
+                # offset for the i-th transition (0-indexed) = (i+1) * (d - t)
+                # This places the transition exactly d-t seconds into the previous
+                # image's display window, giving each image equal on-screen time.
+                for i in range(n - 1):
+                    offset = (i + 1) * (d_xf - t_xf)
+                    in_a = f"[v{i}]" if i == 0 else f"[xf{i}]"
+                    in_b = f"[v{i + 1}]"
+                    # Last transition feeds [xfpre]; intermediates feed [xf{i+1}]
+                    out = f"[xfpre]" if i == n - 2 else f"[xf{i + 1}]"
+                    filter_complex.append(
+                        f"{in_a}{in_b}xfade=transition=fade:"
+                        f"duration={t_xf}:offset={offset}{out};"
+                    )
+
+                # Global fade in at start, fade out at end
+                filter_complex.append(
+                    f"[xfpre]fade=t=in:st=0:d={self.fade_in_ms/1000},"
+                    f"fade=t=out:st={xfade_total - self.fade_out_ms/1000}:"
+                    f"d={self.fade_out_ms/1000}[vout]"
+                )
             
             filter_str = "".join(filter_complex)
             
