@@ -240,13 +240,16 @@ class HeyGenIntegration:
                     "response": data
                 }
             
-            task_id = data["data"].get("task_id")
-            video_url = data["data"].get("video_url")
+            # Try both task_id and video_id for v2 API compatibility
+            data_response = data.get("data", {})
+            task_id = data_response.get("video_id") or data_response.get("task_id")
+            video_url = data_response.get("video_url")
             
             if not task_id:
+                log_debug(f"DEBUG: Full API Response: {data}")
                 return {
                     "success": False,
-                    "error": "No task ID in response",
+                    "error": f"No task ID or video ID in response. Status: {response.status_code}",
                     "response": data
                 }
             
@@ -395,15 +398,8 @@ class HeyGenIntegration:
         script = prompt
         
         # Add instruction to use local models (this would be actual LLM calls)
-        if local_model_type == "mistral-nemo":
-            # Simulate Mistral-Nemo processing
-            script = f"[Local model: mistral-nemo processed]\n{script}"
-        elif local_model_type == "qwen3-vl":
-            # Simulate Qwen3-VL processing
-            script = f"[Local model: qwen3-vl processed]\n{script}"
-        elif local_model_type == "qwen3.5":
-            # Simulate Qwen3.5 processing
-            script = f"[Local model: qwen3.5 processed]\n{script}"
+        # Note: In production, you would call local LLM here to refine the script
+        # For now, we pass the prompt directly without modification
         
         # Call HeyGen API
         return self.create_avatar_video(script=script, output_path=output_path, **kwargs)
